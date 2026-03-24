@@ -4,79 +4,231 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Arcfire</title>
+    <title>Arcfire — Tactical Tank Combat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700;900&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
     <div class="app">
-        <section class="topbar-modern">
-            <div class="hud-player">
-                <div class="bar-head"><span><span class="p-dot"></span> Player</span><span id="playerHpText">100 / 100</span></div>
-                <div class="meter"><span id="playerHpBar" class="player-meter"></span></div>
-                <div class="stats-row"><span>Ang: <span id="playerAngleText">32°</span></span> <span>Pwr: <span id="powerText">55%</span></span></div>
-            </div>
-            
-            <div class="hud-center">
-                <div id="turnIndicator" class="turn-badge">YOUR TURN</div>
-                <button id="menuBtn" class="secondary-btn">Menu</button>
-            </div>
 
-            <div class="hud-enemy">
-                <div class="bar-head"><span>Enemy <span class="e-dot"></span></span><span id="enemyHpText">100 / 100</span></div>
-                <div class="meter"><span id="enemyHpBar" class="enemy-meter"></span></div>
-                <div class="stats-row" style="flex-direction: row-reverse;"><span>Ang: <span id="enemyAngleText">32°</span></span> <span>Pwr: <span id="enemyPowerText">50%</span></span></div>
-            </div>
-        </section>
-
+        <!-- STAGE -->
         <section class="stage-wrap" style="position: relative;">
+
+            <!-- FLOATING MENU BUTTON -->
+            <button id="menuBtn" class="floating-menu-btn hidden" title="Exit to Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+
+            <!-- ── FIRST-TIME TUTORIAL OVERLAY ── -->
+            <div id="tutorialOverlay" class="intro-screen hidden">
+                <div class="tut-overlay-inner">
+                    <div class="tut-badge">FIRST TIME?</div>
+                    <h1 class="tut-title">ARCFIRE<br><span>TACTICAL BRIEF</span></h1>
+
+                    <div class="tut-steps">
+                        <div class="tut-step">
+                            <div class="tut-icon">🎯</div>
+                            <div>
+                                <h3>Positioning</h3>
+                                <p>Use <kbd>A</kbd> / <kbd>D</kbd> to drive your tank across the battlefield. Position
+                                    behind obstacles for cover.</p>
+                            </div>
+                        </div>
+                        <div class="tut-step">
+                            <div class="tut-icon">💥</div>
+                            <div>
+                                <h3>Ballistics</h3>
+                                <p>Aim with <kbd>↑</kbd> <kbd>↓</kbd> and charge power with <kbd>←</kbd> <kbd>→</kbd>.
+                                    Watch the wind arrow — it drifts your shell.</p>
+                            </div>
+                        </div>
+                        <div class="tut-step">
+                            <div class="tut-icon">🌪️</div>
+                            <div>
+                                <h3>Wind & Terrain</h3>
+                                <p>Every explosion carves the terrain. Blast the ground under the enemy to drop them
+                                    into a pit!</p>
+                            </div>
+                        </div>
+                        <div class="tut-step">
+                            <div class="tut-icon">⚡</div>
+                            <div>
+                                <h3>Power-ups</h3>
+                                <p>Drive over glowing orbs to collect power-ups — shrink yourself, grow the enemy, or
+                                    fire a homing missile.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tut-actions">
+                        <button id="tutStartBtn" class="primary-btn" onclick="hideTutorialOverlay()">Got It — Let's
+                            Fight!</button>
+                        <button id="tutMenuBtn" class="secondary-btn"
+                            onclick="hideTutorialOverlay(); if(GAME.paused) togglePause(); quitToMenu();">Back to
+                            Menu</button>
+                    </div>
+                    <p class="tut-hint">You can replay this tutorial any time from the <strong>TUTORIAL</strong> tab in
+                        the main menu.</p>
+                </div>
+            </div>
+
+            <!-- Pause Screen -->
+            <div id="pauseScreen" class="intro-screen hidden">
+                <div class="intro-content" style="max-width:420px;">
+                    <h1 style="letter-spacing:4px; color: var(--accent); font-size:42px; margin-bottom:8px;">PAUSED</h1>
+                    <p class="intro-desc" style="margin-bottom:28px;">Game paused. Take a breath.</p>
+                    <div class="btn-row" style="flex-direction: column; gap: 12px; align-items: center;">
+                        <button id="resumeBtn" class="primary-btn"
+                            style="font-size:17px; padding:13px 44px; width: 100%;">Resume</button>
+                        <button id="viewTutBtn" class="secondary-btn" style="width: 100%;"
+                            onclick="showTutorialOverlay()">View Tutorial</button>
+                        <button id="pauseMenuBtn" class="secondary-btn" style="width: 100%;">Quit to Menu</button>
+                    </div>
+                    <p class="pause-hint" style="margin-top:20px;">Press <kbd>ESC</kbd> to resume</p>
+                </div>
+            </div>
+
+            <!-- Game Over Screen -->
             <div id="gameOverScreen" class="intro-screen hidden">
-                <div class="intro-content">
+                <div class="intro-content" style="max-width:480px;">
                     <h1 id="gameOverTitle">VICTORY</h1>
                     <p class="intro-desc" id="gameOverDesc">Enemy tank eliminated.</p>
-                    <div class="controls" style="justify-content: center; margin-top: 32px; gap: 16px;">
+
+                    <div class="battle-stats">
+                        <div class="stat-row"><span>Shots Fired</span><span id="statShots">0</span></div>
+                        <div class="stat-row"><span>Direct Hits</span><span id="statHits">0</span></div>
+                        <div class="stat-row"><span>Accuracy</span><span id="statAccuracy">0%</span></div>
+                        <div class="stat-row"><span>Damage Dealt</span><span id="statDamage">0</span></div>
+                    </div>
+
+                    <div class="btn-row" style="margin-top:28px;">
                         <button id="nextLevelBtn" class="primary-btn">Next Level</button>
                         <button id="endMenuBtn" class="secondary-btn">Quit to Menu</button>
                     </div>
                 </div>
             </div>
 
+            <!-- Intro / Main Menu -->
             <div id="introScreen" class="intro-screen">
-                <div class="intro-content">
-                    <h1>ARCFIRE</h1>
-                    <p class="intro-desc">Welcome to the battlefield. Destroy your enemy before they destroy you.</p>
-                    
-                    <div class="intro-instructions">
-                        <h3>Instructions</h3>
-                        <p><strong>A / D</strong>: Move Tank</p>
-                        <p><strong>Arrow Up / Down</strong>: Aim Turret</p>
-                        <p><strong>Arrow Left / Right</strong>: Adjust Power</p>
-                        <p><strong>Space</strong>: Fire Weapon</p>
-                    </div>
-
-                    <div class="level-select">
-                        <h3>Select Level</h3>
-                        <select id="levelSelect">
-                            <option value="random">Random Engine</option>
-                            <option value="1">Level 1 - Ruins</option>
-                            <option value="2">Level 2 - Desert</option>
-                            <option value="3">Level 3 - Snow</option>
-                            <option value="4">Level 4 - Tech</option>
-                            <option value="5">Procedural Level 1</option>
-                            <option value="6">Procedural Level 2</option>
-                            <option value="7">Procedural Level 3</option>
-                            <option value="8">Procedural Level 4</option>
-                            <option value="9">Procedural Level 5</option>
-                        </select>
-                    </div>
-
-                    <button id="startBtn" class="primary-btn">Start Game</button>
+                <div class="intro-nav">
+                    <button class="menu-tab active" data-tab="play">PLAY</button>
+                    <button class="menu-tab" data-tab="tutorial">TUTORIAL</button>
                 </div>
+
+                <!-- PLAY TAB -->
+                <div id="tab-play" class="tab-content active">
+                    <div class="intro-content play-tab-content">
+                        <h1>ARCFIRE</h1>
+                        <p class="intro-desc">Command your tank. Destroy the enemy before they destroy you.</p>
+
+                        <div class="menu-selectors">
+                            <div class="selector-container">
+                                <div class="selector-group">
+                                    <h3>Difficulty</h3>
+                                    <div class="diff-btns" id="diffBtns">
+                                        <button class="diff-btn" data-diff="easy">Easy</button>
+                                        <button class="diff-btn active" data-diff="normal">Normal</button>
+                                        <button class="diff-btn" data-diff="hard">Hard</button>
+                                    </div>
+                                    <p class="diff-desc" id="diffDesc">Balanced AI with moderate wind.</p>
+                                </div>
+
+                                <div class="selector-group">
+                                    <h3>Tactical Theater</h3>
+                                    <select id="levelSelect">
+                                        <option value="random">Random Engine</option>
+                                        <option value="1">Level 1 – Ruins</option>
+                                        <option value="2">Level 2 – Desert</option>
+                                        <option value="3">Level 3 – Urban</option>
+                                        <option value="4">Level 4 – Night City</option>
+                                        <option value="5">Procedural Level 1</option>
+                                        <option value="6">Procedural Level 2</option>
+                                        <option value="7">Procedural Level 3</option>
+                                        <option value="8">Procedural Level 4</option>
+                                        <option value="9">Procedural Level 5</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="intro-instructions">
+                                <h3>Controls</h3>
+                                <div class="control-grid">
+                                    <p><strong>A / D</strong> Move Tank</p>
+                                    <p><strong>↑ / ↓</strong> Aim</p>
+                                    <p><strong>← / →</strong> Power</p>
+                                    <p><strong>Space</strong> Fire!</p>
+                                    <p><strong>ESC</strong> Pause</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="startBtn" class="primary-btn">Engage Combat</button>
+                    </div>
+                </div>
+
+                <!-- TUTORIAL TAB -->
+                <div id="tab-tutorial" class="tab-content">
+                    <div class="intro-content tutorial-content">
+                        <h2>TUTORIAL</h2>
+                        <div class="tutorial-steps">
+                            <div class="step-item">
+                                <span class="step-num">01</span>
+                                <div class="step-info">
+                                    <h3>Positioning</h3>
+                                    <p>Use <kbd>A</kbd> and <kbd>D</kbd> to drive your tank. Obstacles block movement —
+                                        use them as cover.</p>
+                                </div>
+                            </div>
+                            <div class="step-item">
+                                <span class="step-num">02</span>
+                                <div class="step-info">
+                                    <h3>Ballistics</h3>
+                                    <p>Aim with <kbd>↑</kbd> <kbd>↓</kbd> and charge power with <kbd>←</kbd>
+                                        <kbd>→</kbd>. Wind drifts your shell — compensate!
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="step-item">
+                                <span class="step-num">03</span>
+                                <div class="step-info">
+                                    <h3>Attrition</h3>
+                                    <p>Direct hits deal full damage. Indirect fire carves craters — blast the ground to
+                                        trap the enemy.</p>
+                                </div>
+                            </div>
+                            <div class="step-item">
+                                <span class="step-num">04</span>
+                                <div class="step-info">
+                                    <h3>Power-ups</h3>
+                                    <p>Glowing orbs spawn on the field. Drive over to collect: Shrink self, Grow enemy,
+                                        or Homing missile.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top:20px;">
+                            <button class="secondary-btn" onclick="document.querySelector('[data-tab=\'play\']').click()">Back</button>
+                            <button class="primary-btn" onclick="startGame()">Start Battle Now</button>
+                        </div>
+                    </div>
+                </div>
+
+
             </div>
-            <canvas id="game" width="1100" height="600"></canvas>
+
+            <canvas id="game" width="1200" height="600"></canvas>
         </section>
     </div>
 
     <script src="game.js"></script>
 </body>
+
 </html>

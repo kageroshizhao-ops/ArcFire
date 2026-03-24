@@ -1,17 +1,7 @@
 const canvas = document.getElementById("game");
+canvas.width = 1200; // Fixed high-res width
+canvas.height = 600; // Fixed high-res height
 const ctx = canvas.getContext("2d");
-
-const ui = {
-    playerHpBar: document.getElementById("playerHpBar"),
-    enemyHpBar: document.getElementById("enemyHpBar"),
-    playerHpText: document.getElementById("playerHpText"),
-    enemyHpText: document.getElementById("enemyHpText"),
-    powerText: document.getElementById("powerText"),
-    enemyPowerText: document.getElementById("enemyPowerText"),
-    playerAngleText: document.getElementById("playerAngleText"),
-    enemyAngleText: document.getElementById("enemyAngleText"),
-    turnIndicator: document.getElementById("turnIndicator")
-};
 
 const GAME = {
     width: canvas.width,
@@ -35,7 +25,22 @@ const GAME = {
     debris: [],
     obstacles: [],
     powerUps: [],
-    difficulty: 1
+    difficulty: 1,
+    // NEW fields
+    round: 1,
+    playerScore: 0,
+    enemyScore: 0,
+    difficultyMode: "normal",   // "easy" | "normal" | "hard"
+    paused: false,
+    playerShots: 0,
+    playerHits: 0,
+    playerDamageDealt: 0,
+    showHint: true,
+    hintTimer: 6,               // seconds to show first-turn hint
+    playerPowerUp: null,        // "size" | "missile" | null
+    craters: [],                // Dynamic crater images on terrain
+    level: 1,                   // Current stage layout
+    theme: "bright",            // "bright" | "pale"
 };
 
 const keys = Object.create(null);
@@ -60,34 +65,136 @@ const SOURCES = {
     red_explode_left: "redtank/left_explode_red-Sheet.png",
     red_explode_right: "redtank/right_explode_red-Sheet.png",
 
+    // ── War 1 assets (Ruins)
     bg_war1_bright: "War1/Bright/War.png",
-    bg_war1_pale: "War1/Pale/War.png",
-    bg_war2_bright: "War2/Bright/War2.png",
-    bg_war2_pale: "War2/Pale/War2.png",
-    bg_war3_bright: "War3/Bright/War3.png",
-    bg_war3_pale: "War3/Pale/War3.png",
-    bg_war4_bright: "War4/Bright/War4.png",
-    bg_war4_pale: "War4/Pale/War4.png",
-
+    bg_war1_pale:   "War1/Pale/War.png",
+    sky_war1_bright: "War1/Bright/sky.png",
+    sky_war1_pale:   "War1/Pale/sky.png",
+    sun_war1_bright: "War1/Bright/sun.png",
+    sun_war1_pale:   "War1/Pale/sun.png",
+    dec_war1_fence_bright: "War1/Bright/fence.png",
+    dec_war1_fence_pale:   "War1/Pale/fence.png",
+    dec_war1_ruins_bright: "War1/Bright/ruins.png",
+    dec_war1_ruins_pale:   "War1/Pale/ruins.png",
+    dec_war1_h1_bright: "War1/Bright/houses1.png",
+    dec_war1_h1_pale:   "War1/Pale/houses1.png",
+    dec_war1_h2_bright: "War1/Bright/houses2.png",
+    dec_war1_h2_pale:   "War1/Pale/houses2.png",
+    dec_war1_h3_bright: "War1/Bright/house3.png",
+    dec_war1_h3_pale:   "War1/Pale/house3.png",
     plat_war1_bright: "War1/Bright/road.png",
-    plat_war1_pale: "War1/Pale/road.png",
+    plat_war1_pale:   "War1/Pale/road.png",
+    crater1_war1_bright: "War1/Bright/crater1.png",
+    crater2_war1_bright: "War1/Bright/crater2.png",
+    crater3_war1_bright: "War1/Bright/crater3.png",
+    crater1_war1_pale:   "War1/Pale/crater1.png",
+    crater2_war1_pale:   "War1/Pale/crater2.png",
+    crater3_war1_pale:   "War1/Pale/crater3.png",
+
+    // ── War 2 assets (Desert)
+    bg_war2_bright: "War2/Bright/War2.png",
+    bg_war2_pale:   "War2/Pale/War2.png",
+    sky_war2_bright: "War2/Bright/sky.png",
+    sky_war2_pale:   "War2/Pale/sky.png",
+    dec_war2_wall_bright:   "War2/Bright/wall.png",
+    dec_war2_wall_pale:     "War2/Pale/wall.png",
+    dec_war2_h1_bright: "War2/Bright/houses1.png",
+    dec_war2_h1_pale:   "War2/Pale/houses1.png",
+    dec_war2_h2_bright: "War2/Bright/houses2.png",
+    dec_war2_h2_pale:   "War2/Pale/houses2.png",
+    dec_war2_h3_bright: "War2/Bright/houses3.png",
+    dec_war2_h3_pale:   "War2/Pale/houses3.png",
+    dec_war2_h4_bright: "War2/Bright/houses4.png",
+    dec_war2_h4_pale:   "War2/Pale/houses4.png",
+    dec_war2_crack1_bright: "War2/Bright/cracks1.png",
+    dec_war2_crack1_pale:   "War2/Pale/cracks1.png",
+    dec_war2_crack2_bright: "War2/Bright/cracks2.png",
+    dec_war2_crack2_pale:   "War2/Pale/cracks2.png",
     plat_war2_bright: "War2/Bright/road.png",
-    plat_war2_pale: "War2/Pale/road.png",
+    plat_war2_pale:   "War2/Pale/road.png",
+    // War2 has no craters, fall back to war1
+    crater1_war2_bright: "War1/Bright/crater1.png",
+    crater2_war2_bright: "War1/Bright/crater2.png",
+    crater3_war2_bright: "War1/Bright/crater3.png",
+    crater1_war2_pale:   "War1/Pale/crater1.png",
+    crater2_war2_pale:   "War1/Pale/crater2.png",
+    crater3_war2_pale:   "War1/Pale/crater3.png",
+
+    // ── War 3 assets (Urban Green)
+    bg_war3_bright: "War3/Bright/War3.png",
+    bg_war3_pale:   "War3/Pale/War3.png",
+    sky_war3_bright: "War3/Bright/sky.png",
+    sky_war3_pale:   "War3/Pale/sky.png",
+    dec_war3_fence_bright: "War3/Bright/fence.png",
+    dec_war3_fence_pale:   "War3/Pale/fence.png",
+    dec_war3_trees_bright: "War3/Bright/trees.png",
+    dec_war3_trees_pale:   "War3/Pale/trees.png",
+    dec_war3_h2_bright: "War3/Bright/houses2.png",
+    dec_war3_h2_pale:   "War3/Pale/houses2.png",
+    dec_war3_b1_bright: "War3/Bright/bricks1.png",
+    dec_war3_b1_pale:   "War3/Pale/bricks1.png",
+    dec_war3_b2_bright: "War3/Bright/bricks2.png",
+    dec_war3_b2_pale:   "War3/Pale/bricks2.png",
     plat_war3_bright: "War3/Bright/road.png",
-    plat_war3_pale: "War3/Pale/road.png",
+    plat_war3_pale:   "War3/Pale/road.png",
+    // War3 has no craters, fall back to war1
+    crater1_war3_bright: "War1/Bright/crater1.png",
+    crater2_war3_bright: "War1/Bright/crater2.png",
+    crater3_war3_bright: "War1/Bright/crater3.png",
+    crater1_war3_pale:   "War1/Pale/crater1.png",
+    crater2_war3_pale:   "War1/Pale/crater2.png",
+    crater3_war3_pale:   "War1/Pale/crater3.png",
+
+    // ── War 4 assets (Night City)
+    bg_war4_bright: "War4/Bright/War4.png",
+    bg_war4_pale:   "War4/Pale/War4.png",
+    sky_war4_bright: "War4/Bright/sky.png",
+    sky_war4_pale:   "War4/Pale/sky.png",
+    dec_war4_moon_bright: "War4/Bright/moon.png",
+    dec_war4_moon_pale:   "War4/Pale/moon.png",
+    dec_war4_wall_bright: "War4/Bright/wall.png",
+    dec_war4_wall_pale:   "War4/Pale/wall.png",
+    dec_war4_h1_bright: "War4/Bright/houses1.png",
+    dec_war4_h1_pale:   "War4/Pale/houses1.png",
+    dec_war4_h2_bright: "War4/Bright/houses2.png",
+    dec_war4_h2_pale:   "War4/Pale/houses2.png",
+    dec_war4_wheels1_bright: "War4/Bright/wheels.png",
+    dec_war4_wheels1_pale:   "War4/Pale/wheels.png",
+    dec_war4_wheels2_bright: "War4/Bright/wheels2.png",
+    dec_war4_wheels2_pale:   "War4/Pale/wheels2.png",
+    dec_war4_wheels3_bright: "War4/Bright/wheels3.png",
+    dec_war4_wheels3_pale:   "War4/Pale/wheels3.png",
     plat_war4_bright: "War4/Bright/road.png",
-    plat_war4_pale: "War4/Pale/road.png",
+    plat_war4_pale:   "War4/Pale/road.png",
+    // War4 has no craters, fall back to war1
+    crater1_war4_bright: "War1/Bright/crater1.png",
+    crater2_war4_bright: "War1/Bright/crater2.png",
+    crater3_war4_bright: "War1/Bright/crater3.png",
+    crater1_war4_pale:   "War1/Pale/crater1.png",
+    crater2_war4_pale:   "War1/Pale/crater2.png",
+    crater3_war4_pale:   "War1/Pale/crater3.png",
+
+    // ── Powerups & misc
     size_power_up: "powerups/targetSize.png",
     missile1: "powerups/missile1.png",
-    missile2: "powerups/missile2.png"
+    missile2: "powerups/missile2.png",
 };
 
 function preloadImages(sources, callback) {
     let loaded = 0;
     let total = Object.keys(sources).length;
+    if (total === 0 && callback) {
+        callback();
+        return;
+    }
     for (let key in sources) {
         let img = new Image();
         img.onload = () => {
+            loaded++;
+            if (loaded === total && callback) callback();
+        };
+        img.onerror = () => {
+            console.error("Missing asset: " + sources[key]);
             loaded++;
             if (loaded === total && callback) callback();
         };
@@ -95,6 +202,50 @@ function preloadImages(sources, callback) {
         IMAGES[key] = img;
     }
 }
+
+// ── Resource Auto-Cropper Helper ──
+// Slices the 1200x600 transparent overlays down to just the target obstacle pixels!
+function getCroppedImage(imgKey) {
+    let img = IMAGES[imgKey];
+    if (!img || !img.complete || img.naturalWidth === 0) return img;
+    let cacheKey = imgKey + "_cropped";
+    if (IMAGES[cacheKey]) return IMAGES[cacheKey];
+
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    
+    let minX = w, minY = h, maxX = 0, maxY = 0;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (data[(y * w + x) * 4 + 3] > 10) {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+            }
+        }
+    }
+    
+    if (minX > maxX || minY > maxY) return img; // Failsafe
+    const cropW = maxX - minX + 1;
+    const cropH = maxY - minY + 1;
+    if (cropW > w * 0.9 && cropH > h * 0.9) return img; // Unnecessary
+
+    const cropped = document.createElement("canvas");
+    cropped.width = cropW;
+    cropped.height = cropH;
+    cropped.getContext("2d").drawImage(img, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+    
+    // Store in cache for blazing fast instant retrievals next round!
+    IMAGES[cacheKey] = cropped;
+    return cropped;
+}
+
 
 class Tank {
     constructor(x, color, facing, name) {
@@ -151,62 +302,163 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+// Decoration layers per war zone / theme
+const WAR_DECOR = {
+    1: ["dec_war1_h1","dec_war1_h2","dec_war1_h3"],
+    2: ["dec_war2_h1","dec_war2_h2","dec_war2_h3","dec_war2_h4"],
+    3: ["dec_war3_h2","dec_war3_trees"],
+    4: ["dec_war4_h1","dec_war4_h2"],
+};
+
 function createTerrain() {
     GAME.terrain.length = 0;
-    let key = `plat_war${GAME.level}_${GAME.theme}`;
-    let img = IMAGES[key];
+    const lv     = Math.min(GAME.level, 4); // cap at 4 (procedural levels reuse war1-4)
+    const theme  = GAME.theme;
+    const platKey = `plat_war${lv}_${theme}`;
+    const img = IMAGES[platKey];
 
+    // Background Canvas (Sky, Sun, Buildings, Decor)
+    GAME.bgCanvas = document.createElement("canvas");
+    GAME.bgCanvas.width  = GAME.width;
+    GAME.bgCanvas.height = GAME.height;
+    const bgCtx = GAME.bgCanvas.getContext("2d");
+
+    // Foreground Terrain Canvas (Road/Trenches)
     GAME.terrainCanvas = document.createElement("canvas");
-    GAME.terrainCanvas.width = GAME.width;
+    GAME.terrainCanvas.width  = GAME.width;
     GAME.terrainCanvas.height = GAME.height;
-    let tctx = GAME.terrainCanvas.getContext("2d");
+    const tctx = GAME.terrainCanvas.getContext("2d");
 
-    let fallback = () => {
-        let seed = Math.random() * 1000;
-        let diffBump = Math.min((GAME.difficulty - 1) * 25, 150);
-        let hillHeight = 60 + Math.random() * 80 + diffBump;
-        for (let x = 0; x <= GAME.width; x += 4) {
-            let y = 450 + Math.sin(x / 150 + seed) * hillHeight + Math.sin(x / 50 + seed) * 15;
-            if (x < 200) y = y * (x / 200) + 400 * (1 - x / 200);
-            if (x > GAME.width - 200) y = y * ((GAME.width - x) / 200) + 400 * (1 - (GAME.width - x) / 200);
-            GAME.terrain.push({ x, y: y });
+    // Helper: draw an image key full-canvas to background
+    const drawBgLayer = (key, opacity = 1) => {
+        const im = IMAGES[key];
+        if (im && im.complete && im.naturalWidth > 0) {
+            bgCtx.save();
+            bgCtx.globalAlpha = opacity;
+            bgCtx.drawImage(im, 0, 0, GAME.width, GAME.height);
+            bgCtx.restore();
         }
+    };
 
-        let r = 20 + Math.floor(Math.random() * 40);
-        let g = 30 + Math.floor(Math.random() * 60);
-        let b = 25 + Math.floor(Math.random() * 30);
+    // ── Procedural fallback (used when road image is missing or for levels 5-9)
+    const fallback = () => {
+        const seed      = Math.random() * 1000;
+        const diffBump  = Math.min((GAME.difficulty - 1) * 25, 150);
+        const hillH     = 60 + Math.random() * 80 + diffBump;
+        for (let x = 0; x <= GAME.width; x += 4) {
+            let y = 450 + Math.sin(x / 150 + seed) * hillH + Math.sin(x / 50 + seed) * 15;
+            if (x < 200)              y = y * (x / 200) + 400 * (1 - x / 200);
+            if (x > GAME.width - 200) y = y * ((GAME.width - x) / 200) + 400 * (1 - (GAME.width - x) / 200);
+            GAME.terrain.push({ x, y });
+        }
+        const r = 20 + Math.floor(Math.random() * 40);
+        const g = 30 + Math.floor(Math.random() * 60);
+        const b = 25 + Math.floor(Math.random() * 30);
 
-        tctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.94)`;
+        // Draw basic sky/grad to bgCanvas
+        const grad = bgCtx.createLinearGradient(0, 0, 0, GAME.height);
+        grad.addColorStop(0, "#2c3b4a");
+        grad.addColorStop(1, "#12181f");
+        bgCtx.fillStyle = grad;
+        bgCtx.fillRect(0, 0, GAME.width, GAME.height);
+
+        // Draw terrain to terrainCanvas
+        tctx.fillStyle = `rgba(${r},${g},${b},0.94)`;
         tctx.beginPath();
         tctx.moveTo(0, GAME.height);
-        for (let p of GAME.terrain) tctx.lineTo(p.x, p.y);
+        for (const p of GAME.terrain) tctx.lineTo(p.x, p.y);
         tctx.lineTo(GAME.width, GAME.height);
         tctx.closePath();
         tctx.fill();
-
         tctx.lineWidth = 12;
-        tctx.strokeStyle = `rgba(${r + 30}, ${g + 40}, ${b + 30}, 0.8)`;
+        tctx.strokeStyle = `rgba(${r+30},${g+40},${b+30},0.8)`;
         tctx.beginPath();
         tctx.moveTo(GAME.terrain[0].x, GAME.terrain[0].y);
-        for (let p of GAME.terrain) tctx.lineTo(p.x, p.y);
+        for (const p of GAME.terrain) tctx.lineTo(p.x, p.y);
         tctx.stroke();
     };
 
-    if (img && img.complete && img.width > 0) {
+    if (img && img.complete && img.naturalWidth > 0) {
         try {
-            tctx.drawImage(img, 0, 0, GAME.width, GAME.height);
-            let imgData = tctx.getImageData(0, 0, GAME.width, GAME.height).data;
+            // 1️⃣  Sky layer
+            drawBgLayer(`sky_war${lv}_${theme}`);
+            // 2️⃣  Sun / moon
+            const sunKey = lv === 4 ? `dec_war${lv}_moon_${theme}` : `sun_war${lv}_${theme}`;
+            drawBgLayer(sunKey, 0.85);
+            // 3️⃣  Main background (buildings, cityscape)
+            drawBgLayer(`bg_war${lv}_${theme}`);
+            // 4️⃣  Decorative props — pick 2-3 randomly
+            const decors = WAR_DECOR[lv] || [];
+            const pick = decors.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+            for (const base of pick) {
+                drawBgLayer(`${base}_${theme}`, 0.9);
+            }
 
-            for (let x = 0; x <= GAME.width; x += 4) {
-                let foundY = 400;
-                for (let y = Math.floor(GAME.height / 2); y < GAME.height; y++) {
-                    let alpha = imgData[(y * GAME.width + x) * 4 + 3];
-                    if (alpha > 50) {
-                        foundY = y;
-                        break;
-                    }
+            const useRoads = Math.random() > 0.4;
+            if (useRoads) {
+                // 5️⃣  Road / platform layer drawn to foreground canvas
+                tctx.drawImage(img, 0, 0, GAME.width, GAME.height);
+
+                // Carve TRENCHES into the flat road image to create map variety
+                const seed = Math.random() * 1000;
+                const hillH = 40 + Math.random() * 40;
+                tctx.globalCompositeOperation = "destination-out";
+                tctx.beginPath();
+                tctx.moveTo(0, 0);
+                tctx.lineTo(GAME.width, 0);
+                for (let x = GAME.width; x >= 0; x -= 4) {
+                    // Carve curve (leaves lower part intact)
+                    let y = 380 + Math.sin(x / 110 + seed) * hillH + Math.sin(x / 30 + seed) * 15;
+                    if (x < 150) y = y * (x / 150) + 360 * (1 - x / 150); // Flatten spawn
+                    if (x > GAME.width - 150) y = y * ((GAME.width - x) / 150) + 360 * (1 - (GAME.width - x) / 150); // Flatten spawn
+                    tctx.lineTo(x, y);
                 }
-                GAME.terrain.push({ x, y: foundY });
+                tctx.closePath();
+                tctx.fill();
+                tctx.globalCompositeOperation = "source-over"; // restore
+                
+                // Sample the terrain height strictly from the carved road image alpha
+                const imgData = tctx.getImageData(0, 0, GAME.width, GAME.height).data;
+                for (let x = 0; x <= GAME.width; x += 4) {
+                    let foundY = 400;
+                    for (let y = 0; y < GAME.height; y++) {
+                        if (imgData[(y * GAME.width + x) * 4 + 3] > 50) { foundY = y; break; }
+                    }
+                    GAME.terrain.push({ x, y: foundY });
+                }
+            } else {
+                // Procedurally generated massive hills (as foreground terrain only)
+                const seed      = Math.random() * 1000;
+                const diffBump  = Math.min((GAME.difficulty - 1) * 25, 150);
+                const hillH     = 60 + Math.random() * 80 + diffBump;
+                for (let x = 0; x <= GAME.width; x += 4) {
+                    let y = 450 + Math.sin(x / 150 + seed) * hillH + Math.sin(x / 50 + seed) * 15;
+                    if (x < 150)              y = y * (x / 150) + 400 * (1 - x / 150);
+                    if (x > GAME.width - 150) y = y * ((GAME.width - x) / 150) + 400 * (1 - (GAME.width - x) / 150);
+                    GAME.terrain.push({ x, y });
+                }
+                let baseR = 20, baseG = 30, baseB = 25;
+                if (lv === 1) { baseR = 40; baseG = 80; baseB = 40; }       // Forest
+                else if (lv === 2) { baseR = 90; baseG = 45; baseB = 30; }  // Desert/Ruins
+                else if (lv === 3) { baseR = 100; baseG = 110; baseB = 120; } // Winter
+                else if (lv === 4) { baseR = 25; baseG = 35; baseB = 60; }  // Night
+
+                const r = baseR + Math.floor(Math.random() * 20);
+                const g = baseG + Math.floor(Math.random() * 20);
+                const b = baseB + Math.floor(Math.random() * 20);
+                tctx.fillStyle = `rgba(${r},${g},${b},0.94)`;
+                tctx.beginPath();
+                tctx.moveTo(0, GAME.height);
+                for (const p of GAME.terrain) tctx.lineTo(p.x, p.y);
+                tctx.lineTo(GAME.width, GAME.height);
+                tctx.closePath();
+                tctx.fill();
+                tctx.lineWidth = 12;
+                tctx.strokeStyle = `rgba(${r+30},${g+40},${b+30},0.8)`;
+                tctx.beginPath();
+                tctx.moveTo(GAME.terrain[0].x, GAME.terrain[0].y);
+                for (const p of GAME.terrain) tctx.lineTo(p.x, p.y);
+                tctx.stroke();
             }
         } catch (e) {
             fallback();
@@ -225,6 +477,10 @@ function createSkyDecor() {
 }
 
 function getTerrainY(x) {
+    // If tank drives cleanly off the edge of the world, simulate a 500% sheer cliff drop-off!
+    if (x < 0) return GAME.terrain[0].y + (0 - x) * 5;
+    if (x > GAME.width) return GAME.terrain[GAME.terrain.length - 1].y + (x - GAME.width) * 5;
+
     const clampedX = Math.max(0, Math.min(GAME.width, x));
     const index = Math.floor(clampedX / 4);
     const p1 = GAME.terrain[index] || GAME.terrain[GAME.terrain.length - 1];
@@ -257,7 +513,7 @@ function carveTerrain(cx, cy, radius) {
             let dy = Math.sqrt(radius * radius - dx * dx);
             let craterBot = cy + dy;
             if (p.y < craterBot) {
-                p.y = Math.min(GAME.height, craterBot);
+                p.y = craterBot;
             }
         }
     }
@@ -276,11 +532,7 @@ function checkObstacleHit(projectile) {
 }
 
 function resetGame() {
-    createTerrain();
-    createSkyDecor();
-
     GAME.effects = [];
-    GAME.debris = [];
     GAME.projectile = null;
     GAME.state = "aiming";
     GAME.turn = "player";
@@ -288,6 +540,7 @@ function resetGame() {
     GAME.flashTimer = 0;
     GAME.screenShake = 0;
     GAME.powerUps = [];
+    GAME.craters = [];
 
     player.x = 130;
     enemy.x = 960;
@@ -326,43 +579,82 @@ function resetGame() {
     }
     GAME.theme = Math.random() < 0.5 ? "bright" : "pale";
 
+    createTerrain();
+    createSkyDecor();
+
+    const wheels = ["dec_war4_wheels1", "dec_war4_wheels2", "dec_war4_wheels3"];
+    const WAR_OBSTACLES = {
+        1: wheels,
+        2: wheels,
+        3: wheels,
+        4: wheels
+    };
+
+    const lv = Math.min(GAME.level, 4);
+    const obsList = WAR_OBSTACLES[lv] || [];
+
     GAME.obstacles = [];
     let numObstacles = Math.floor(Math.random() * 3) + 1 + Math.floor(GAME.difficulty / 2);
     for (let i = 0; i < numObstacles; i++) {
         let ox = 250 + Math.random() * 600;
+        let hp = 80 + (GAME.difficulty - 1) * 20;
+
+        let obsType = Math.random() > 0.5 ? "bunker" : "rockwall";
         let ow = 36 + Math.random() * 16;
         let oh = 40 + Math.random() * 30;
-        let hp = 80 + (GAME.difficulty - 1) * 20;
+        let imgKey = null;
+
+        if (obsList.length > 0) {
+            const baseKey = obsList[Math.floor(Math.random() * obsList.length)];
+            const attemptKey = `${baseKey}_${GAME.theme}`;
+            const croppedImg = getCroppedImage(attemptKey);
+            
+            if (croppedImg && croppedImg.width > 0) {
+                imgKey = attemptKey + "_cropped";
+                if (!IMAGES[imgKey]) imgKey = attemptKey; // Fallback if no crop needed
+                obsType = "image";
+                
+                // Keep hitboxes realistic depending on sprite complexity
+                const maxDim = 80 + Math.random() * 50;
+                const scale = maxDim / Math.max(croppedImg.width || croppedImg.naturalWidth, croppedImg.height || croppedImg.naturalHeight);
+                ow = (croppedImg.width || croppedImg.naturalWidth) * scale;
+                oh = (croppedImg.height || croppedImg.naturalHeight) * scale;
+            }
+        }
+
         GAME.obstacles.push({
             x: ox,
             y: undefined,
             width: ow,
             height: oh,
-            type: Math.random() > 0.5 ? "bunker" : "rockwall",
+            type: obsType,
+            imgKey: imgKey,
             hp: hp,
             maxHp: hp,
             alive: true
         });
     }
 
-    updateUI();
+    // ── Generate wind based on difficulty ──
+    const windMax = GAME.difficultyMode === "easy" ? 0.03
+        : GAME.difficultyMode === "hard" ? 0.10
+            : 0.06;
+    GAME.wind = (Math.random() * 2 - 1) * windMax;
+
+    // ── Reset per-round stats ──
+    GAME.playerShots = 0;
+    GAME.playerHits = 0;
+    GAME.playerDamageDealt = 0;
+    GAME.playerPowerUp = null;
+    GAME.paused = false;
+    GAME.showHint = true;
+    GAME.hintTimer = 6;
+
+    updateHUD();
 }
 
-function updateUI() {
-    ui.playerHpBar.style.width = `${player.hp}%`;
-    ui.enemyHpBar.style.width = `${enemy.hp}%`;
-    ui.playerHpText.textContent = `${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`;
-    ui.enemyHpText.textContent = `${Math.max(0, Math.round(enemy.hp))} / ${enemy.maxHp}`;
-
-    if (ui.powerText) ui.powerText.textContent = `${Math.round(player.power)}%`;
-    if (ui.enemyPowerText) ui.enemyPowerText.textContent = `${Math.round(enemy.power)}%`;
-    if (ui.playerAngleText) ui.playerAngleText.textContent = `${Math.round(-player.angle)}°`;
-    if (ui.enemyAngleText) ui.enemyAngleText.textContent = `${Math.round(enemy.angle + 180)}°`;
-
-    if (ui.turnIndicator) {
-        ui.turnIndicator.textContent = GAME.turn === "player" ? "YOUR TURN" : "ENEMY TURN";
-        ui.turnIndicator.style.color = GAME.turn === "player" ? "var(--success)" : "var(--danger)";
-    }
+function updateHUD() {
+    // HUD is now handled by drawCanvasHUD in the render loop.
 }
 
 function spawnProjectile(tank, isHoming = false) {
@@ -395,6 +687,9 @@ function spawnProjectile(tank, isHoming = false) {
     GAME.flashTimer = 0.05;
     GAME.state = "projectile";
 
+    // Track player shots
+    if (tank === player) GAME.playerShots++;
+
     tank.state = "firing";
     tank.animFrame = 0;
     tank.animTimer = 0;
@@ -422,23 +717,42 @@ function applyAIShot() {
 
     const dx = player.x - enemy.x;
     const dy = (player.y - 24) - (enemy.y - 24);
-    const distance = Math.abs(dx);
+    
+    // Calculate expected wind drift (d = 0.5 * a * t^2) using a heuristic time-of-flight
+    const estTicks = Math.abs(dx) * 0.14; 
+    const windDrift = 0.5 * GAME.wind * (estTicks * estTicks);
+    
+    // Hard AI perfectly predicts wind drag. Normal does okay. Easy ignores it.
+    const comp = GAME.difficultyMode === "hard" ? 1.0 : (GAME.difficultyMode === "normal" ? 0.5 : 0.0);
+    const aimDx = dx - (windDrift * comp);
+    const distance = Math.abs(aimDx);
 
     let angleDeg = -145;
     let power = clamp(42 + distance * 0.04, 28, 92);
 
     const arcChoice = distance > 420 ? 50 : 38;
-    angleDeg = -180 + arcChoice;
+    // Enemy faces left if player is left, right if player is right
+    angleDeg = aimDx < 0 ? (-180 + arcChoice) : -arcChoice;
 
     const rough = solveBallisticEstimate(distance, dy, arcChoice, GAME.gravity);
     if (rough) {
-        power = clamp(rough * 3.55, 25, 95);
+        power = clamp(rough * 6.06, 25, 95); // 1 / 0.165 = 6.06 true velocity multiplier
     }
 
     angleDeg += Math.random() * 3 - 1.5;
     power += Math.random() * 2 - 1;
 
-    enemy.angle = clamp(angleDeg, -210, -10);
+    // ── Difficulty-aware AI error ──────────────────────────
+    const errA = GAME.difficultyMode === "easy" ? 15
+        : GAME.difficultyMode === "hard" ? 0.5
+            : 3;
+    const errP = GAME.difficultyMode === "easy" ? 10
+        : GAME.difficultyMode === "hard" ? 0.2
+            : 2.0;
+    angleDeg += (Math.random() * 2 - 1) * errA;
+    power += (Math.random() * 2 - 1) * errP;
+
+    enemy.angle = clamp(angleDeg, -210, 30);
     enemy.power = clamp(power, 20, 100);
 
     setTimeout(() => {
@@ -448,13 +762,27 @@ function applyAIShot() {
     }, 850);
 }
 
+function canClimb(tank, dir, dt) {
+    const step = 6;
+    const currentY = getTerrainY(tank.x);
+    const nextY = getTerrainY(tank.x + dir * step);
+    const rise = currentY - nextY; // Positive means climbing upwards
+    
+    // Check if the vertical climb over 6 pixels is greater than ~9 pixels (1.5 slope ratio).
+    // This perfectly catches steep crater walls while allowing gentle dips.
+    if (rise > step * 1.5) {
+        return false;
+    }
+    return true;
+}
+
 function updatePlayerInput(dt) {
     if (GAME.state === "intro" || GAME.turn !== "player" || GAME.state !== "aiming" || GAME.winner) return;
 
     const moveSpeed = 86;
     let moved = false;
 
-    let minX = GAME.leftBound;
+    let minX = GAME.leftBound; // Restored hard bounds
     let maxX = enemy.x - 150;
     GAME.obstacles.forEach(obs => {
         if (!obs.alive) return;
@@ -463,12 +791,16 @@ function updatePlayerInput(dt) {
     });
 
     if (keys["a"]) {
-        player.x = clamp(player.x - moveSpeed * dt, minX, maxX);
-        moved = true;
+        if (canClimb(player, -1, dt)) {
+            player.x = clamp(player.x - moveSpeed * dt, minX, maxX);
+            moved = true;
+        }
     }
     if (keys["d"]) {
-        player.x = clamp(player.x + moveSpeed * dt, minX, maxX);
-        moved = true;
+        if (canClimb(player, 1, dt)) {
+            player.x = clamp(player.x + moveSpeed * dt, minX, maxX);
+            moved = true;
+        }
     }
     if (keys["arrowup"]) player.angle = clamp(player.angle - 48 * dt, -170, 30);
     if (keys["arrowdown"]) player.angle = clamp(player.angle + 48 * dt, -170, 30);
@@ -487,7 +819,7 @@ function updatePlayerInput(dt) {
         }
     }
 
-    updateUI();
+    updateHUD();
 }
 
 function updateProjectile(dt) {
@@ -583,6 +915,12 @@ function applyDamage(tank, amount) {
     tank.hp = clamp(tank.hp - amount, 0, tank.maxHp);
     tank.hitFlash = 0.18;
 
+    // Track player-dealt damage
+    if (GAME.projectile && GAME.projectile.owner === "Player" && tank === enemy) {
+        GAME.playerHits++;
+        GAME.playerDamageDealt += amount;
+    }
+
     if (tank.hp <= 0) {
         if (tank.alive) {
             tank.state = "exploding";
@@ -601,11 +939,26 @@ function applyDamage(tank, amount) {
         });
         GAME.winner = tank === player ? "Enemy Wins!" : "Player Wins!";
         GAME.state = "gameover";
+
+        // Update scores
+        if (GAME.winner === "Player Wins!") GAME.playerScore++;
+        else GAME.enemyScore++;
+        GAME.round++;
+
         setTimeout(() => {
-            document.getElementById("gameOverTitle").textContent = GAME.winner === "Player Wins!" ? "VICTORY" : "DEFEAT";
-            document.getElementById("gameOverTitle").style.color = GAME.winner === "Player Wins!" ? "var(--success)" : "var(--danger)";
-            document.getElementById("gameOverDesc").textContent = GAME.winner === "Player Wins!" ? "Enemy tank eliminated." : "Your tank was destroyed.";
-            document.getElementById("nextLevelBtn").style.display = GAME.winner === "Player Wins!" ? "inline-block" : "none";
+            const isVictory = GAME.winner === "Player Wins!";
+            document.getElementById("gameOverTitle").textContent = isVictory ? "VICTORY" : "DEFEAT";
+            document.getElementById("gameOverTitle").style.color = isVictory ? "var(--success)" : "var(--danger)";
+            document.getElementById("gameOverDesc").textContent = isVictory ? "Enemy tank eliminated." : "Your tank was destroyed.";
+            document.getElementById("nextLevelBtn").style.display = isVictory ? "inline-block" : "none";
+
+            // Populate battle stats
+            const acc = GAME.playerShots > 0 ? Math.round((GAME.playerHits / GAME.playerShots) * 100) : 0;
+            document.getElementById("statShots").textContent = GAME.playerShots;
+            document.getElementById("statHits").textContent = GAME.playerHits;
+            document.getElementById("statAccuracy").textContent = acc + "%";
+            document.getElementById("statDamage").textContent = Math.round(GAME.playerDamageDealt);
+
             document.getElementById("gameOverScreen").classList.remove("hidden");
         }, 1500);
     }
@@ -632,6 +985,17 @@ function explode(x, y, radius, directTank) {
         max: 1.1,
         radius: radius * 0.8
     });
+
+    // Add level-specific crater decoration
+    const lv = Math.min(GAME.level, 4);
+    const craterNum = Math.floor(Math.random() * 3) + 1;
+    GAME.craters.push({
+        x, y,
+        r: radius * 1.2,
+        key: `crater${craterNum}_war${lv}_${GAME.theme}`,
+        rotation: (Math.random() - 0.5) * 0.6
+    });
+    if (GAME.craters.length > 20) GAME.craters.shift();
 
     for (let i = 0; i < 12; i++) {
         GAME.debris.push({
@@ -675,7 +1039,7 @@ function explode(x, y, radius, directTank) {
     });
 
     if (directTank) applyDamage(directTank, 8);
-    updateUI();
+    updateHUD();
 }
 
 function endTurn() {
@@ -683,6 +1047,11 @@ function endTurn() {
 
     GAME.state = "aiming";
     GAME.turn = GAME.turn === "player" ? "enemy" : "player";
+
+    // ── Dynamic Wind Fluctuation ──
+    const windMax = GAME.difficultyMode === "easy" ? 0.03 : (GAME.difficultyMode === "hard" ? 0.12 : 0.06);
+    GAME.wind += (Math.random() * 2 - 1) * (windMax * 0.6); // dynamically shifts
+    GAME.wind = Math.max(-windMax, Math.min(windMax, GAME.wind));
 
     [player, enemy].forEach(tank => {
         if (tank.effectTurns > 0) {
@@ -712,7 +1081,7 @@ function endTurn() {
         const dist = 40 + Math.random() * 80;
         enemy.targetX = clamp(enemy.x + dir * dist, player.x + 150, GAME.rightBound);
     }
-    updateUI();
+    updateHUD();
 }
 
 function updateEffects(dt) {
@@ -785,11 +1154,8 @@ function drawCloud(x, y, w, h) {
 }
 
 function drawBackground() {
-    let key = `bg_war${GAME.level}_${GAME.theme}`;
-    let img = IMAGES[key];
-
-    if (img && img.complete && img.width > 0) {
-        ctx.drawImage(img, 0, 0, GAME.width, GAME.height);
+    if (GAME.bgCanvas) {
+        ctx.drawImage(GAME.bgCanvas, 0, 0);
     } else {
         const grad = ctx.createLinearGradient(0, 0, 0, GAME.height);
         grad.addColorStop(0, "#2c3b4a");
@@ -932,13 +1298,13 @@ function drawAimGuide() {
 
     let x = muzzle.x;
     let y = muzzle.y;
-    let vx = Math.cos(rad) * player.power * 0.28;
-    let vy = Math.sin(rad) * player.power * 0.28;
+    let vx = Math.cos(rad) * player.power * 0.165;
+    let vy = Math.sin(rad) * player.power * 0.165;
 
-    for (let i = 0; i < 28; i++) {
-        x += vx;
-        y += vy;
-        vy += GAME.gravity;
+    for (let i = 0; i < 35; i++) {
+        // Step 2 frames per iteration to preview trajectory far out efficiently
+        x += vx; y += vy; vy += GAME.gravity; vx += GAME.wind;
+        x += vx; y += vy; vy += GAME.gravity; vx += GAME.wind;
         preview.push({ x, y });
         if (y > getTerrainY(x)) break;
     }
@@ -1001,29 +1367,51 @@ function drawObstacles() {
         ctx.translate(obs.x, oy);
         ctx.rotate(angle);
 
-        if (obs.type === "bunker") {
-            ctx.fillStyle = "#5a5c62";
-            ctx.beginPath();
-            ctx.moveTo(-obs.width / 2, 0);
-            ctx.lineTo(-obs.width / 2, -obs.height + 14);
-            ctx.quadraticCurveTo(0, -obs.height - 10, obs.width / 2, -obs.height + 14);
-            ctx.lineTo(obs.width / 2, 0);
-            ctx.fill();
-
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = "#38393d";
-            ctx.stroke();
-
-            ctx.fillStyle = "#111";
-            ctx.fillRect(-obs.width / 4, -obs.height / 1.5, obs.width / 2, 8);
-        } else {
-            drawRock(0, -obs.height / 2, obs.width / 30);
+        let drawn = false;
+        if (obs.type === "image" && obs.imgKey) {
+            const img = IMAGES[obs.imgKey];
+            if (img && (img.width > 0 || img.naturalWidth > 0)) {
+                ctx.drawImage(img, -obs.width / 2, -obs.height, obs.width, obs.height);
+                drawn = true;
+            }
         }
 
+        if (!drawn) {
+            if (obs.type === "bunker") {
+                ctx.fillStyle = "#5a5c62";
+                ctx.beginPath();
+                ctx.moveTo(-obs.width / 2, 0);
+                ctx.lineTo(-obs.width / 2, -obs.height + 14);
+                ctx.quadraticCurveTo(0, -obs.height - 10, obs.width / 2, -obs.height + 14);
+                ctx.lineTo(obs.width / 2, 0);
+                ctx.fill();
+
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#38393d";
+                ctx.stroke();
+
+                ctx.fillStyle = "#111";
+                ctx.fillRect(-obs.width / 4, -obs.height / 1.5, obs.width / 2, 8);
+            } else {
+                drawRock(0, -obs.height / 2, obs.width / 30);
+            }
+        }
+
+        // Health bar for the obstacle
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(-obs.width / 2, -obs.height - 14, obs.width, 5);
         ctx.fillStyle = "#7aff7a";
         ctx.fillRect(-obs.width / 2, -obs.height - 14, Math.max(0, obs.width * (obs.hp / obs.maxHp)), 5);
+        
+        // Damage smoke state
+        if (obs.hp < obs.maxHp) {
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            const smokeRadius = (1 - obs.hp / obs.maxHp) * Math.max(obs.width, obs.height) * 0.4;
+            ctx.beginPath();
+            ctx.arc(0, -obs.height / 2, smokeRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
         ctx.restore();
     });
 }
@@ -1166,7 +1554,7 @@ function updatePowerUps(dt) {
                     tank.state = "firing";
                     tank.animFrame = 0;
                     spawnProjectile(tank, true);
-                    updateUI();
+                    updateHUD();
                 }
 
                 GAME.effects.push({
@@ -1239,7 +1627,7 @@ function updateEnemyAI(dt) {
 
     if (GAME.state === "moving") {
         let minX = player.x + 150;
-        let maxX = GAME.rightBound;
+        let maxX = GAME.rightBound; // Restored hard bounds
         GAME.obstacles.forEach(obs => {
             if (!obs.alive) return;
             if (obs.x < enemy.x) minX = Math.max(minX, obs.x + obs.width / 2 + 42);
@@ -1253,7 +1641,15 @@ function updateEnemyAI(dt) {
 
         if (Math.abs(dx) > moveSpeed * dt) {
             enemy.state = "moving";
-            enemy.x = clamp(enemy.x + Math.sign(dx) * moveSpeed * dt, minX, maxX);
+            const dir = Math.sign(dx);
+            
+            if (canClimb(enemy, dir, dt)) {
+                enemy.x = clamp(enemy.x + dir * moveSpeed * dt, minX, maxX);
+            } else {
+                // If slope is too steep, give up pursuing position and brace to fire!
+                enemy.targetX = enemy.x;
+            }
+            
             enemy.trackFrame += dt * 12;
             enemy.bob += dt * 10;
         } else {
@@ -1267,18 +1663,32 @@ function updateEnemyAI(dt) {
                 }
             }, 600);
         }
-        updateUI();
+        updateHUD();
     }
 }
 
 function update(dt) {
     if (GAME.state === "intro") return;
+    if (GAME.paused) return;
+
+    // Hint timer countdown
+    if (GAME.showHint) {
+        GAME.hintTimer -= dt;
+        if (GAME.hintTimer <= 0) GAME.showHint = false;
+    }
 
     updatePlayerInput(dt);
     updateProjectile(dt);
     updateEffects(dt);
     updateEnemyAI(dt);
     updatePowerUps(dt);
+
+    // Insta-kill tanks that fall to the bottom edge of the map!
+    [player, enemy].forEach(tank => {
+        if (tank.alive && tank.y >= GAME.height - 5) {
+            applyDamage(tank, 9999); 
+        }
+    });
 
     GAME.obstacles.forEach(obs => {
         if (!obs.alive) return;
@@ -1303,13 +1713,25 @@ function render() {
 
     drawBackground();
     drawTerrain();
-    drawAimGuide();
+
+    // Draw craters on the terrain
+    drawCraters();
+
+    // Always draw basic world elements
+    drawObstacles();
     drawTank(player);
     drawTank(enemy);
-    drawPowerUps();
-    drawObstacles();
-    drawProjectile();
-    drawEffects();
+
+    // Only show gameplay elements if not in intro
+    if (GAME.state !== "intro") {
+        drawAimGuide();
+        drawPowerUps();
+        drawProjectile();
+        drawEffects();
+        drawWindOverlay();
+        drawHint();
+        drawCanvasHUD(); // DRAW HEALTH BARS ON CANVAS
+    }
 
     ctx.restore();
 
@@ -1320,6 +1742,187 @@ function render() {
         ctx.fillRect(0, 0, GAME.width, GAME.height);
         ctx.restore();
     }
+}
+
+function drawCraters() {
+    for (const c of GAME.craters) {
+        const img = IMAGES[c.key];
+        if (img && img.complete && img.naturalWidth > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.82;
+            ctx.translate(c.x, c.y);
+            ctx.rotate(c.rotation);
+            ctx.drawImage(img, -c.r, -c.r * 0.5, c.r * 2, c.r);
+            ctx.restore();
+        }
+    }
+}
+
+function drawCanvasHUD() {
+    // Draw simple but sleek health bars on canvas
+    const margin = 20;
+    const barW = 240;
+    const barH = 14;
+
+    // Player HP Bar (Left)
+    drawBar(margin, margin, barW, barH, player.hp / player.maxHp, "#71e07a", "COMMANDER", player.angle, player.power);
+
+    // Enemy HP Bar (Right)
+    drawBar(GAME.width - barW - margin, margin, barW, barH, enemy.hp / enemy.maxHp, "#ff6b6b", "ENEMY ACES", enemy.angle, enemy.power);
+
+    // Center Display (Round, Score, Wind, Turn)
+    drawCenterStats();
+}
+
+function drawCenterStats() {
+    const cx = GAME.width / 2;
+    const panelW = 320;
+    const panelH = 72;
+    const px = cx - panelW / 2;
+    const py = 10;
+
+    // Background panel
+    ctx.fillStyle = "rgba(6, 14, 24, 0.82)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, px, py, panelW, panelH, 14, true, true);
+
+    // Accent top border line
+    ctx.fillStyle = "rgba(255, 213, 79, 0.6)";
+    ctx.fillRect(px + 20, py, panelW - 40, 2);
+
+    // Row 1 – Label
+    ctx.font = "bold 9px 'Orbitron', sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(`ROUND ${GAME.round}`, cx, py + 7);
+
+    // Row 2 – Score
+    ctx.font = "bold 24px 'Orbitron', sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(`${GAME.playerScore}  —  ${GAME.enemyScore}`, cx, py + 20);
+
+    // Row 3 – Turn indicator
+    const isPlayer = GAME.turn === "player";
+    ctx.font = "bold 10px 'Orbitron', sans-serif";
+    ctx.fillStyle = isPlayer ? "#71e07a" : "#ff6b6b";
+    ctx.fillText(isPlayer ? "▶  YOUR TURN" : "ENEMY TURN  ◀", cx, py + 50);
+
+    // Wind block – left side
+    const ws = GAME.wind;
+    const wDir = ws > 0.01 ? "→" : (ws < -0.01 ? "←" : "•");
+    const windText = (Math.abs(ws) * 100).toFixed(1);
+    ctx.textAlign = "left";
+    ctx.font = "bold 9px 'Orbitron', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.38)";
+    ctx.fillText("WIND", px + 14, py + 18);
+    ctx.font = "600 14px 'Rajdhani', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(wDir + " " + windText, px + 14, py + 32);
+
+    // Stats block – right side
+    ctx.textAlign = "right";
+    ctx.font = "bold 9px 'Orbitron', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.38)";
+    ctx.fillText("SHOTS / HITS", px + panelW - 14, py + 18);
+    ctx.font = "600 14px 'Rajdhani', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(`${GAME.playerShots} / ${GAME.playerHits}`, px + panelW - 14, py + 32);
+}
+
+function drawBar(x, y, w, h, percent, color, label, angle, power) {
+    // Background
+    ctx.fillStyle = "rgba(6, 14, 24, 0.8)";
+    roundRect(ctx, x, y, w, h, 7, true, true);
+
+    // Fill
+    if (percent > 0) {
+        ctx.fillStyle = color;
+        roundRect(ctx, x, y, w * percent, h, 7, true, false);
+
+        // Glow effect
+        ctx.save();
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = color;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Label
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 13px 'Orbitron', sans-serif";
+    ctx.textAlign = label === "COMMANDER" ? "left" : "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x + (label === "COMMANDER" ? 0 : w), y + h + 10);
+
+    // Stats Sub-labels (Angle & Power)
+    ctx.font = "600 12px 'Rajdhani', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    const statText = `ANG: ${Math.round(label === "COMMANDER" ? -angle : angle + 180)}°  |  PWR: ${Math.round(power)}%`;
+    ctx.textAlign = label === "COMMANDER" ? "left" : "right";
+    ctx.fillText(statText, x + (label === "COMMANDER" ? 0 : w), y + h + 28);
+
+    // HP Percentage
+    ctx.fillStyle = color;
+    ctx.font = "bold 12px 'Orbitron', sans-serif";
+    ctx.textAlign = label === "COMMANDER" ? "right" : "left";
+    ctx.fillText(Math.round(percent * 100) + "%", x + (label === "COMMANDER" ? w : 0), y + h + 10);
+}
+
+function drawWindOverlay() {
+    if (GAME.state === "intro" || GAME.winner) return;
+    const ws = GAME.wind;
+    if (Math.abs(ws) < 0.005) return;
+
+    // Draw animated wind streaks across the canvas
+    ctx.save();
+    const numStreaks = Math.ceil(Math.abs(ws) * 120);
+    const speed = ws * 600;
+    const t = (Date.now() / 1000) % 1;
+
+    for (let i = 0; i < numStreaks; i++) {
+        const seed = (i * 137.508) % 1;
+        const y = seed * GAME.height * 0.75;
+        const len = 30 + seed * 60;
+        const ox = ((seed + t * Math.sign(ws)) % 1) * GAME.width;
+        const alpha = 0.06 + seed * 0.08;
+
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = "#c8e8ff";
+        ctx.lineWidth = 0.8 + seed * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(ox, y);
+        ctx.lineTo(ox + (ws > 0 ? len : -len), y + (seed - 0.5) * 8);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawHint() {
+    if (!GAME.showHint || GAME.turn !== "player" || GAME.state !== "aiming") return;
+
+    const alpha = Math.min(1, GAME.hintTimer * 0.5);
+    const cx = GAME.width / 2;
+    const cy = GAME.height - 48;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Background pill
+    const text = "A/D: Move  |  ↑↓: Aim  |  ←→: Power  |  Space: Fire  |  ESC: Pause";
+    ctx.font = "bold 13px 'Rajdhani', Arial";
+    const tw = ctx.measureText(text).width;
+    const pw = tw + 32, ph = 28;
+
+    ctx.fillStyle = "rgba(6,14,24,0.82)";
+    roundRect(ctx, cx - pw / 2, cy - ph / 2, pw, ph, 14, true, true);
+
+    ctx.fillStyle = "rgba(255,213,79,0.85)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, cx, cy);
+    ctx.restore();
 }
 
 function gameLoop(timestamp) {
@@ -1337,8 +1940,17 @@ document.addEventListener("keydown", e => {
     const key = e.key.toLowerCase();
     keys[key] = true;
 
+    // Pause / Resume with ESC
+    if (e.key === "Escape") {
+        e.preventDefault();
+        if (GAME.state === "gameover" || GAME.state === "intro") return;
+        togglePause();
+        return;
+    }
+
     if (e.code === "Space" || key === " ") {
         e.preventDefault();
+        if (GAME.paused) return;
         if (GAME.turn === "player" && GAME.state === "aiming" && !GAME.projectile && !GAME.winner) {
             fireCurrentTank();
         }
@@ -1349,16 +1961,57 @@ document.addEventListener("keyup", e => {
     keys[e.key.toLowerCase()] = false;
 });
 
+function togglePause() {
+    if (GAME.winner) return;
+    GAME.paused = !GAME.paused;
+    const ps = document.getElementById("pauseScreen");
+    if (GAME.paused) {
+        ps.classList.remove("hidden");
+    } else {
+        ps.classList.add("hidden");
+    }
+}
+
 function showIntro() {
     document.getElementById("introScreen").classList.remove("hidden");
+    document.getElementById("pauseScreen").classList.add("hidden");
+    const mBtn = document.getElementById("menuBtn");
+    if (mBtn) mBtn.classList.add("hidden"); // Hide floating button in menu
     GAME.state = "intro";
+    GAME.paused = false;
+}
+
+// ── First-time tutorial flag ─────────────────────────────
+let hasSeenTutorial = false;
+
+function showTutorialOverlay() {
+    document.getElementById("tutorialOverlay").classList.remove("hidden");
+}
+
+function hideTutorialOverlay() {
+    document.getElementById("tutorialOverlay").classList.add("hidden");
 }
 
 function startGame() {
+    const activeBtn = document.querySelector(".diff-btn.active");
+    GAME.difficultyMode = activeBtn ? activeBtn.dataset.diff : "normal";
+
     document.getElementById("introScreen").classList.add("hidden");
     document.getElementById("gameOverScreen").classList.add("hidden");
+    const mBtn = document.getElementById("menuBtn");
+    if (mBtn) mBtn.classList.remove("hidden");
+
     GAME.difficulty = 1;
+    GAME.round = 1;
+    GAME.playerScore = 0;
+    GAME.enemyScore = 0;
     resetGame();
+
+    if (!hasSeenTutorial) {
+        hasSeenTutorial = true;
+        // Brief delay so the game renders behind the tutorial
+        setTimeout(showTutorialOverlay, 300);
+    }
 }
 
 function loadNextLevel() {
@@ -1378,10 +2031,58 @@ function quitToMenu() {
     showIntro();
 }
 
-document.getElementById("menuBtn").addEventListener("click", showIntro);
+// ── Difficulty selector buttons ─────────────────────────
+const diffDescMap = {
+    easy: "AI misses often. Very little wind. Great for beginners.",
+    normal: "Balanced AI with moderate wind.",
+    hard: "High-accuracy AI with strong unpredictable wind."
+};
+
+document.querySelectorAll(".diff-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        document.querySelectorAll(".diff-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const dd = document.getElementById("diffDesc");
+        if (dd) dd.textContent = diffDescMap[btn.dataset.diff] || "";
+    });
+});
+
+// ── UI Event Listeners ───────────────────────────────────
+const mBtn = document.getElementById("menuBtn");
+if (mBtn) mBtn.addEventListener("click", () => {
+    if (GAME.state === "intro" || GAME.state === "gameover") {
+        showIntro();
+    } else {
+        togglePause();
+    }
+});
 document.getElementById("startBtn").addEventListener("click", startGame);
 document.getElementById("nextLevelBtn").addEventListener("click", loadNextLevel);
 document.getElementById("endMenuBtn").addEventListener("click", quitToMenu);
+document.getElementById("resumeBtn").addEventListener("click", togglePause);
+document.getElementById("pauseMenuBtn").addEventListener("click", () => { GAME.paused = false; quitToMenu(); });
+
+// ── Tab switching logic ──────────────────────────────────
+document.querySelectorAll(".menu-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+        const targetTab = tab.dataset.tab;
+
+        // Update tab buttons
+        document.querySelectorAll(".menu-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        // Update tab content
+        document.querySelectorAll(".tab-content").forEach(content => {
+            content.classList.remove("active");
+            if (content.id === `tab-${targetTab}`) {
+                content.classList.add("active");
+            }
+        });
+
+        // Add a subtle sound effect or animation
+        GAME.screenShake = 2;
+    });
+});
 
 preloadImages(SOURCES, () => {
     resetGame();
