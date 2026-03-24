@@ -73,7 +73,7 @@
                     </div>
 
                     <div class="tut-actions">
-                        <button id="tutStartBtn" class="primary-btn" onclick="hideTutorialOverlay()">Got It — Let's
+                        <button id="StartBtn" class="primary-btn" onclick="hideTutorialOverlay()">Got It — Let's
                             Fight!</button>
                         <button id="tutMenuBtn" class="secondary-btn"
                             onclick="hideTutorialOverlay(); if(GAME.paused) togglePause(); quitToMenu();">Back to
@@ -161,7 +161,10 @@
                                         <option value="8">Procedural Level 4</option>
                                         <option value="9">Procedural Level 5</option>
                                     </select>
+                            
                                 </div>
+
+                                
                             </div>
 
                             <div class="intro-instructions">
@@ -174,8 +177,19 @@
                                     <p><strong>ESC</strong> Pause</p>
                                 </div>
                             </div>
+                            
+                            <div class="selector-container-mode">
+                        <div class="selector-group-mode">
+                                    <h3>Game Mode</h3>
+                                    <select id="modeSelect">
+                                        <option value="1">Multiplayer</option>
+                                        <option value="2">Single Player</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-
+                        
+                            
                         <button id="startBtn" class="primary-btn">Engage Combat</button>
                     </div>
                 </div>

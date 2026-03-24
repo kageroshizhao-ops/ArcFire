@@ -262,6 +262,13 @@ document.addEventListener("keydown", e => {
             fireCurrentTank();
         }
     }
+    // Multiplayer: allow Enter to fire when it's player 2's (enemy) turn
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (GAME.mode === 'multiplayer' && GAME.turn === 'enemy' && GAME.state === 'aiming' && !GAME.projectile && !GAME.winner) {
+            fireCurrentTank();
+        }
+    }
 });
 
 document.addEventListener("keyup", e => {
@@ -302,6 +309,21 @@ function startGame() {
     const activeBtn = document.querySelector(".diff-btn.active");
     GAME.difficultyMode = activeBtn ? activeBtn.dataset.diff : "normal";
 
+    // Read selected game mode: '1' = Multiplayer, '2' = Single Player
+    const modeEl = document.getElementById('modeSelect');
+    const modeVal = modeEl ? modeEl.value : '2';
+    GAME.mode = (modeVal === '1') ? 'multiplayer' : 'single';
+    GAME.useAI = (GAME.mode === 'single');
+
+    // Update tank names for multiplayer mode
+    if (GAME.mode === 'multiplayer') {
+        player.name = 'Player 1';
+        enemy.name = 'Player 2';
+    } else {
+        player.name = 'Player';
+        enemy.name = 'Enemy';
+    }
+
     document.getElementById("introScreen").classList.add("hidden");
     document.getElementById("gameOverScreen").classList.add("hidden");
     const mBtn = document.getElementById("menuBtn");
@@ -313,12 +335,38 @@ function startGame() {
         // extra fallback in case warm needs a tick to stabilize
         setTimeout(() => SFX.warm("tankLanding"), 120);
     }
+    // Ensure the game canvas is visible when the battle starts
+    const canvasEl = document.getElementById('game');
+    if (canvasEl) canvasEl.style.display = '';
 
     GAME.difficulty = 1;
     GAME.round = 1;
     GAME.playerScore = 0;
     GAME.enemyScore = 0;
     resetGame();
+
+    // If terrain hasn't been created yet (user skipped tutorial confirmation), create it now
+    if (!GAME.terrain || GAME.terrain.length === 0) {
+        createTerrain();
+        createSkyDecor();
+    }
+
+    // Configure the game over / next button behavior according to mode
+    const nextBtn = document.getElementById("nextLevelBtn");
+    if (nextBtn) {
+        if (GAME.mode === 'multiplayer') {
+            nextBtn.textContent = 'Play Again';
+            nextBtn.style.display = 'inline-block';
+            nextBtn.onclick = function () {
+                document.getElementById("gameOverScreen").classList.add("hidden");
+                GAME.winner = null;
+                resetGame();
+            };
+        } else {
+            nextBtn.textContent = 'Next Level';
+            nextBtn.onclick = loadNextLevel;
+        }
+    }
 
     if (!hasSeenTutorial) {
         hasSeenTutorial = true;
@@ -343,6 +391,12 @@ function loadNextLevel() {
 function quitToMenu() {
     document.getElementById("gameOverScreen").classList.add("hidden");
     showIntro();
+}
+
+function playAgain() {
+    document.getElementById("gameOverScreen").classList.add("hidden");
+    GAME.winner = null;
+    resetGame();
 }
 
 const diffDescMap = {

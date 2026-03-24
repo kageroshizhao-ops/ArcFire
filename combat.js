@@ -59,6 +59,7 @@ function solveBallisticEstimate(dxAbs, dy, launchDegrees, gravity) {
 }
 
 function applyAIShot() {
+    if (!GAME.useAI) return;
     if (GAME.turn !== "enemy" || GAME.state !== "aiming" || GAME.winner) return;
 
     const dx = player.x - enemy.x;
@@ -254,21 +255,33 @@ function applyDamage(tank, amount) {
             max: 0.9
         });
         GAME.winner = tank === player ? "Enemy Wins!" : "Player Wins!";
+        // Determine winner tank (the opposite of the one that died)
+        const winnerTank = (tank === player) ? enemy : player;
+        GAME.winner = winnerTank.name || (winnerTank === player ? "Player" : "Enemy");
         GAME.state = "gameover";
 
         // Update scores
-        if (GAME.winner === "Player Wins!") GAME.playerScore++;
+        if (winnerTank === player) GAME.playerScore++;
         else GAME.enemyScore++;
         GAME.round++;
 
         setTimeout(() => {
-            const isVictory = GAME.winner === "Player Wins!";
-            document.getElementById("gameOverTitle").textContent = isVictory ? "VICTORY" : "DEFEAT";
-            document.getElementById("gameOverTitle").style.color = isVictory ? "var(--success)" : "var(--danger)";
-            document.getElementById("gameOverDesc").textContent = isVictory ? "Enemy tank eliminated." : "Your tank was destroyed.";
-            document.getElementById("nextLevelBtn").style.display = isVictory ? "inline-block" : "none";
+            // Show winner name prominently
+            document.getElementById("gameOverDesc").textContent = `${GAME.winner} Wins!`;
 
-            // Populate battle stats
+            // For multiplayer, convert the Next button into Play Again; for single-player keep Next Level logic
+            const nextBtn = document.getElementById("nextLevelBtn");
+            if (GAME.mode === 'multiplayer') {
+                nextBtn.textContent = "Play Again";
+                nextBtn.style.display = "inline-block";
+                nextBtn.onclick = function () { playAgain(); };
+            } else {
+                nextBtn.textContent = "Next Level";
+                nextBtn.style.display = playerWon ? "inline-block" : "none";
+                nextBtn.onclick = loadNextLevel;
+            }
+
+            // Populate battle stats (still player-centric)
             const acc = GAME.playerShots > 0 ? Math.round((GAME.playerHits / GAME.playerShots) * 100) : 0;
             document.getElementById("statShots").textContent = GAME.playerShots;
             document.getElementById("statHits").textContent = GAME.playerHits;
@@ -396,58 +409,84 @@ function endTurn() {
     }
 
     if (GAME.turn === "enemy") {
-        GAME.state = "moving";
-        const dir = Math.random() < 0.5 ? -1 : 1;
-        const dist = 40 + Math.random() * 80;
-        enemy.targetX = clamp(enemy.x + dir * dist, player.x + 150, GAME.rightBound);
+        if (GAME.useAI) {
+            GAME.state = "moving";
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            const dist = 40 + Math.random() * 80;
+            enemy.targetX = clamp(enemy.x + dir * dist, player.x + 150, GAME.rightBound);
+        } else {
+            // multiplayer human-controlled: enter aiming so player 2 can control the tank
+            GAME.state = "aiming";
+        }
     }
 }
 
 function updatePlayerInput(dt) {
-    if (GAME.state === "intro" || GAME.turn !== "player" || GAME.state !== "aiming" || GAME.winner) return;
+    if (GAME.state === "intro" || GAME.state !== "aiming" || GAME.winner) return;
+
+    // In single player only the `player` turn is human; in multiplayer both turns are human
+    if (GAME.mode !== 'multiplayer' && GAME.turn !== 'player') return;
 
     const moveSpeed = 86;
     let moved = false;
 
-    let minX = GAME.leftBound; // Restored hard bounds
-    let maxX = enemy.x - 150;
+    const isPlayerTurn = GAME.turn === 'player';
+    const tank = isPlayerTurn ? player : enemy;
+
+    // determine control mapping depending on mode and which tank is active
+    let leftKey, rightKey, angUpKey, angDownKey, powDownKey, powUpKey;
+    if (GAME.mode === 'multiplayer') {
+        if (isPlayerTurn) {
+            leftKey = 'a'; rightKey = 'd'; angUpKey = 'w'; angDownKey = 's'; powDownKey = 'f'; powUpKey = 'h';
+        } else {
+            leftKey = 'arrowleft'; rightKey = 'arrowright'; angUpKey = 'arrowdown'; angDownKey = 'arrowup'; powDownKey = 'l'; powUpKey = 'j';
+        }
+    } else {
+        // single player: player uses WASD for movement and arrows for angle/power
+        leftKey = 'a'; rightKey = 'd'; angUpKey = 'arrowup'; angDownKey = 'arrowdown'; powDownKey = 'arrowleft'; powUpKey = 'arrowright';
+    }
+
+    let minX = GAME.leftBound;
+    let maxX = (tank === player) ? enemy.x - 150 : GAME.rightBound;
     GAME.obstacles.forEach(obs => {
         if (!obs.alive) return;
-        if (obs.x > player.x) maxX = Math.min(maxX, obs.x - obs.width / 2 - 42);
+        if (obs.x > tank.x) maxX = Math.min(maxX, obs.x - obs.width / 2 - 42);
         else minX = Math.max(minX, obs.x + obs.width / 2 + 42);
     });
 
-    if (keys["a"]) {
-        if (canClimb(player, -1, dt)) {
-            player.x = clamp(player.x - moveSpeed * dt, minX, maxX);
+    if (keys[leftKey]) {
+        if (canClimb(tank, -1, dt)) {
+            tank.x = clamp(tank.x - moveSpeed * dt, minX, maxX);
             moved = true;
         }
     }
-    if (keys["d"]) {
-        if (canClimb(player, 1, dt)) {
-            player.x = clamp(player.x + moveSpeed * dt, minX, maxX);
+    if (keys[rightKey]) {
+        if (canClimb(tank, 1, dt)) {
+            tank.x = clamp(tank.x + moveSpeed * dt, minX, maxX);
             moved = true;
         }
     }
-    if (keys["arrowup"]) player.angle = clamp(player.angle - 48 * dt, -170, 30);
-    if (keys["arrowdown"]) player.angle = clamp(player.angle + 48 * dt, -170, 30);
-    if (keys["arrowleft"]) player.power = clamp(player.power - 34 * dt, 20, 100);
-    if (keys["arrowright"]) player.power = clamp(player.power + 34 * dt, 20, 100);
+
+    if (keys[angUpKey]) tank.angle = clamp(tank.angle - 48 * dt, -170, 30);
+    if (keys[angDownKey]) tank.angle = clamp(tank.angle + 48 * dt, -170, 30);
+    if (keys[powDownKey]) tank.power = clamp(tank.power - 34 * dt, 20, 100);
+    if (keys[powUpKey]) tank.power = clamp(tank.power + 34 * dt, 20, 100);
 
     if (moved) {
-        if (player.state !== "firing" && player.alive) {
-            player.state = "moving";
+        if (tank.state !== "firing" && tank.alive) {
+            tank.state = "moving";
         }
-        player.trackFrame += dt * 12;
-        player.bob += dt * 10;
+        tank.trackFrame += dt * 12;
+        tank.bob += dt * 10;
     } else {
-        if (player.state === "moving") {
-            player.state = "idle";
+        if (tank.state === "moving") {
+            tank.state = "idle";
         }
     }
 }
 
 function updateEnemyAI(dt) {
+    if (!GAME.useAI) return;
     if (GAME.turn !== "enemy" || GAME.winner) return;
 
     if (GAME.state === "moving") {
