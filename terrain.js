@@ -82,7 +82,7 @@ function createTerrain() {
                 drawBgLayer(`${base}_${theme}`, 0.9);
             }
 
-            const useRoads = Math.random() > 0.4;
+            const useRoads = true;
             if (useRoads) {
                 // 5️⃣  Road / platform layer drawn to foreground canvas
                 tctx.drawImage(img, 0, 0, GAME.width, GAME.height);
