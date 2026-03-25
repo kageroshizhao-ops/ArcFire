@@ -263,7 +263,7 @@ document.addEventListener("keydown", e => {
         }
     }
     // Multiplayer: allow Enter to fire when it's player 2's (enemy) turn
-    if (e.key === 'Enter') {
+    if (e.key === 'Space' || key === " ") {
         e.preventDefault();
         if (GAME.mode === 'multiplayer' && GAME.turn === 'enemy' && GAME.state === 'aiming' && !GAME.projectile && !GAME.winner) {
             fireCurrentTank();

@@ -437,9 +437,9 @@ function updatePlayerInput(dt) {
     let leftKey, rightKey, angUpKey, angDownKey, powDownKey, powUpKey;
     if (GAME.mode === 'multiplayer') {
         if (isPlayerTurn) {
-            leftKey = 'a'; rightKey = 'd'; angUpKey = 'w'; angDownKey = 's'; powDownKey = 'f'; powUpKey = 'h';
+            leftKey = 'a'; rightKey = 'd'; angUpKey = 'arrowup'; angDownKey = 'arrowdown'; powDownKey = 'arrowleft'; powUpKey = 'arrowright';
         } else {
-            leftKey = 'arrowleft'; rightKey = 'arrowright'; angUpKey = 'arrowdown'; angDownKey = 'arrowup'; powDownKey = 'l'; powUpKey = 'j';
+            leftKey = 'a'; rightKey = 'd'; angUpKey = 'arrowdown'; angDownKey = 'arrowup'; powDownKey = 'arrowright'; powUpKey = 'arrowleft';
         }
     } else {
         // single player: player uses WASD for movement and arrows for angle/power
