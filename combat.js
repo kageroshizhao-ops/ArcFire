@@ -11,6 +11,7 @@ function spawnProjectile(tank, isHoming = false, type = "Standard") {
         vy: Math.sin(angle) * power,
         radius: 5,
         trail: [],
+        fullTrail: [],  // Complete path history for fire trail effect
         homing: isHoming,
         animTimer: 0,
         shooter: tank,
@@ -211,6 +212,9 @@ function updateProjectile(dt) {
         // Trail
         p.trail.push({ x: p.x, y: p.y, life: 0.65 });
         if (p.trail.length > 24) p.trail.shift();
+        // Full path record (for fire trail on 3-hit streak)
+        if (!p.fullTrail) p.fullTrail = [];
+        p.fullTrail.push({ x: p.x, y: p.y });
 
         // Physics
         p.x += p.vx;
@@ -312,7 +316,8 @@ function handleProjectileImpact(p, index, terrainY, collider) {
                 animTimer: 0,
                 shooter: shooterTank,
                 type: "Submunition",
-                isSplit: true
+                isSplit: true,
+                fullTrail: []
             });
         }
 
@@ -424,20 +429,81 @@ function checkObstacleHit(projectile) {
     return null;
 }
 
+function spawnFireTrailFromProjectile(proj) {
+    if (!proj || !proj.fullTrail || proj.fullTrail.length < 2 || proj.trailSpawned) return;
+    proj.trailSpawned = true; // Avoid multiple trails from the same shell
+    // Store a snapshot of the flight path as a fire trail effect
+    GAME.fireTrails.push({
+        owner: proj.shooter === player ? "player" : "enemy",
+        points: proj.fullTrail.slice(),   // Copy the full path
+        timer: 4.0,                        // Burns for 4 seconds with fade
+        max: 4.0,
+        seed: Math.random() * 1000        // For staggered flicker animation
+    });
+}
+
 function applyDamage(tank, amount) {
     if (!tank.alive) return;
 
     tank.hp = clamp(tank.hp - amount, 0, tank.maxHp);
     tank.hitFlash = 0.18;
+    GAME.hitThisTurn = true;
 
-    // Track damage dealt
-    if (GAME.projectile) {
-        if (GAME.projectile.shooter === player && tank === enemy) {
+    // ── Track damage dealt & hit streaks ──
+    // We walk GAME.projectiles to find the active shooter since applyDamage
+    // is called inside explode() which doesn't receive the projectile directly.
+    const activeProj = GAME.projectiles.find(pr =>
+        (pr.shooter === player && tank === enemy) ||
+        (pr.shooter === enemy && tank === player)
+    );
+
+    if (activeProj) {
+        if (activeProj.shooter === player && tank === enemy) {
             GAME.playerHits++;
             GAME.playerDamageDealt += amount;
-        } else if (GAME.projectile.shooter === enemy && tank === player) {
+            GAME.playerHitStreak++;
+            GAME.enemyHitStreak = 0; // enemy missed this exchange
+            if (GAME.playerHitStreak >= 3) {
+                spawnFireTrailFromProjectile(activeProj);
+                // Show streak badge
+                GAME.effects.push({
+                    type: "text",
+                    x: tank.x,
+                    y: tank.y - 90,
+                    text: `🔥 ${GAME.playerHitStreak}-HIT STREAK!`,
+                    color: "#ff6a00",
+                    timer: 2.2,
+                    max: 2.2
+                });
+            }
+        } else if (activeProj.shooter === enemy && tank === player) {
             GAME.enemyHits++;
             GAME.enemyDamageDealt += amount;
+            GAME.enemyHitStreak++;
+            GAME.playerHitStreak = 0;
+            if (GAME.enemyHitStreak >= 3) {
+                spawnFireTrailFromProjectile(activeProj);
+                GAME.effects.push({
+                    type: "text",
+                    x: tank.x,
+                    y: tank.y - 90,
+                    text: `🔥 ENEMY ${GAME.enemyHitStreak}-HIT STREAK!`,
+                    color: "#ff6a00",
+                    timer: 2.2,
+                    max: 2.2
+                });
+            }
+        }
+    } else {
+        // Fallback: legacy projectile tracking (kept for backward compat)
+        if (GAME.projectile) {
+            if (GAME.projectile.shooter === player && tank === enemy) {
+                GAME.playerHits++;
+                GAME.playerDamageDealt += amount;
+            } else if (GAME.projectile.shooter === enemy && tank === player) {
+                GAME.enemyHits++;
+                GAME.enemyDamageDealt += amount;
+            }
         }
     }
 
@@ -620,6 +686,15 @@ function endTurn() {
 
     GAME.state = "aiming";
     GAME.turn = GAME.turn === "player" ? "enemy" : "player";
+
+    if (!GAME.hitThisTurn) {
+        if (actorTank === player) {
+            GAME.playerHitStreak = 0;
+        } else {
+            GAME.enemyHitStreak = 0;
+        }
+    }
+    GAME.hitThisTurn = false;
 
     // ── Dynamic Wind Fluctuation ──
     const windMax = GAME.difficultyMode === "easy" ? 0.045 : (GAME.difficultyMode === "hard" ? 0.16 : 0.09);

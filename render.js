@@ -424,6 +424,35 @@ function drawEffects() {
         if (effect.type === "oilPuddle") {
             drawOilPuddle(effect);
         }
+
+        if (effect.type === "text") {
+            const life = effect.timer / effect.max; // 1 -> 0
+            const alpha = Math.min(1.0, effect.timer * 3);
+            const rise = (1 - life) * 58; // floats upward further
+            const scale = 0.82 + Math.sin(life * Math.PI) * 0.45; // pop out then back
+            const wobble = Math.sin(GAME.titleTimer * 12) * 6 * (1 - life);
+
+            ctx.save();
+            ctx.translate(effect.x + wobble, effect.y - rise);
+            ctx.scale(scale, scale);
+            ctx.globalAlpha = alpha;
+            ctx.font = "bold 24px 'Orbitron', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            
+            // Neon glow effect
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = effect.color || "#ffea00";
+            ctx.fillStyle = "#ffffff"; // White text with colored glow looks more premium
+            ctx.fillText(effect.text, 0, 0);
+            
+            // Secondary stroke for sharpness
+            ctx.strokeStyle = effect.color || "#ff6a00";
+            ctx.lineWidth = 1.5;
+            ctx.strokeText(effect.text, 0, 0);
+            
+            ctx.restore();
+        }
     }
 
     GAME.debris.forEach(d => {
@@ -532,6 +561,24 @@ function updateEffects(dt) {
     GAME.flashTimer = Math.max(0, GAME.flashTimer - dt);
     GAME.screenShake = Math.max(0, GAME.screenShake - dt * 20);
     GAME.titleTimer += dt;
+
+    // ── Update Fire Trails (Fading & Cleanup) ──
+    if (GAME.fireTrails && GAME.fireTrails.length > 0) {
+        // Limit total trails to 6 for performance safety
+        if (GAME.fireTrails.length > 6) GAME.fireTrails.shift();
+
+        for (let i = GAME.fireTrails.length - 1; i >= 0; i--) {
+            const tr = GAME.fireTrails[i];
+            tr.timer -= dt;
+
+            // Optional: speed up decay slightly if we have many trails
+            if (GAME.fireTrails.length > 3) tr.timer -= dt * 0.5;
+
+            if (tr.timer <= 0) {
+                GAME.fireTrails.splice(i, 1);
+            }
+        }
+    }
 }
 
 function drawCraters() {
@@ -914,6 +961,57 @@ function drawBurnZones() {
             ctx.stroke();
         }
 
+        ctx.restore();
+    }
+}
+
+function drawFireTrails() {
+    if (!GAME.fireTrails || GAME.fireTrails.length === 0) return;
+
+    const now = GAME.titleTimer;
+
+    for (const trail of GAME.fireTrails) {
+        const pts = trail.points;
+        const fadeRatio = trail.timer / trail.max;
+        if (pts.length < 2 || fadeRatio <= 0.02) continue;
+
+        // Optimized sampling: fewer flames per trail for better FPS
+        // step covers a larger distance between points
+        const step = Math.max(1, Math.floor(pts.length / 45));
+
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+
+        for (let i = 0; i < pts.length; i += step) {
+            const pt = pts[i];
+            const posRatio = i / pts.length;
+
+            const flicker = 0.8 + 0.2 * Math.sin(now * 16 + trail.seed + i * 0.4);
+            const alpha = fadeRatio * flicker * (0.5 + posRatio * 0.5);
+            if (alpha < 0.05) continue;
+
+            const flameH = (15 + Math.random() * 22) * (0.35 + fadeRatio * 0.65);
+            const flameW = (8 + Math.random() * 8) * (0.35 + fadeRatio * 0.65);
+
+            ctx.save();
+            ctx.translate(pt.x, pt.y);
+
+            // High-performance double-gradient flame
+            const rad = flameH * 1.25;
+            const coreGrad = ctx.createRadialGradient(0, -flameH * 0.3, 0, 0, -flameH * 0.3, rad);
+            coreGrad.addColorStop(0, `rgba(255, 255, 220, ${alpha})`);
+            coreGrad.addColorStop(0.35, `rgba(255, 140, 20, ${alpha * 0.75})`);
+            coreGrad.addColorStop(1, `rgba(180, 20, 0, 0)`);
+
+            ctx.fillStyle = coreGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, 4);
+            ctx.quadraticCurveTo(-flameW * 1.6, -flameH * 0.3, 0, -flameH);
+            ctx.quadraticCurveTo(flameW * 1.6, -flameH * 0.3, 0, 4);
+            ctx.fill();
+
+            ctx.restore();
+        }
         ctx.restore();
     }
 }

@@ -11,6 +11,10 @@ function resetGame() {
     GAME.powerUps = [];
     GAME.craters = [];
     GAME.burnZones = [];
+    GAME.fireTrails = [];
+    GAME.playerHitStreak = 0;
+    GAME.enemyHitStreak = 0;
+    GAME.hitThisTurn = false;
 
     player.x = 130;
     enemy.x = 960;
@@ -18,8 +22,8 @@ function resetGame() {
     enemy.hp = 100;
     player.angle = -35;
     enemy.angle = -145;
-    player.power = 55;
-    enemy.power = 50;
+    player.power = 45;
+    enemy.power = 40;
     player.trackFrame = 0;
     enemy.trackFrame = 0;
     player.bob = 0;
@@ -243,6 +247,7 @@ function render() {
     drawTerrain();
     drawCraters();
     drawBurnZones();
+    drawFireTrails();
     drawObstacles();
     drawTank(player);
     drawTank(enemy);
@@ -291,7 +296,7 @@ document.addEventListener("keydown", e => {
 
     // Ammo selection (1-4 keys)
     const activeTank = GAME.turn === "player" ? player : enemy;
-    
+
     // Prevent switching ammo if stuck? 
     // Usually only movement is restricted. I'll allow ammo switching.
 

@@ -45,6 +45,10 @@ const GAME = {
     theme: "bright",            // "bright" | "pale"
     killedEnemies: 0,           // Number of enemies killed in Endless mode
     ammoTypes: ["Standard", "Cluster", "Oil", "Napalm"],
+    fireTrails: [],             // Persistent fire paths from 3-hit streaks
+    playerHitStreak: 0,        // Consecutive hits by player on enemy
+    enemyHitStreak: 0,         // Consecutive hits by enemy on player
+    hitThisTurn: false,        // Did any hit occur this turn?
 };
 
 const keys = Object.create(null);
