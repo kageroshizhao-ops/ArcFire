@@ -67,18 +67,34 @@ function applyAIShot() {
     const dy = (player.y - 24) - (enemy.y - 24);
 
     // Calculate expected wind drift (d = 0.5 * a * t^2) using a heuristic time-of-flight
-    const estTicks = Math.abs(dx) * 0.14;
-    const windDrift = 0.5 * GAME.wind * (estTicks * estTicks);
+    // Note that the actual physics uses `vx += GAME.wind * 1.15`
+    let estTicks = Math.abs(dx) * 0.14;
+    let windDrift = 0.5 * (GAME.wind * 1.15) * (estTicks * estTicks);
 
     // Hard AI perfectly predicts wind drag. Normal does okay. Easy ignores it.
-    const comp = GAME.difficultyMode === "hard" ? 1.0 : (GAME.difficultyMode === "normal" ? 0.5 : 0.0);
-    const aimDx = dx - (windDrift * comp);
-    const distance = Math.abs(aimDx);
+    let comp = GAME.difficultyMode === "hard" ? 1.0 : (GAME.difficultyMode === "normal" ? 0.5 : 0.0);
+    let aimDx = dx - (windDrift * comp);
+    let distance = Math.abs(aimDx);
+
+    let arcChoice = distance > 420 ? 50 : 38;
+    
+    // In Hard mode, iteratively improve the time-of-flight estimate for pin-point accuracy
+    if (GAME.difficultyMode === "hard") {
+        const roughInit = solveBallisticEstimate(distance, dy, arcChoice, GAME.gravity);
+        if (roughInit) {
+            const vx = roughInit * Math.cos(arcChoice * Math.PI / 180);
+            if (vx > 0) {
+                estTicks = distance / vx;
+                windDrift = 0.5 * (GAME.wind * 1.15) * (estTicks * estTicks);
+                aimDx = dx - windDrift;
+                distance = Math.abs(aimDx);
+                arcChoice = distance > 420 ? 50 : 38; // Recalculate arc if distance changes drastically
+            }
+        }
+    }
 
     let angleDeg = -145;
     let power = clamp(42 + distance * 0.04, 28, 92);
-
-    const arcChoice = distance > 420 ? 50 : 38;
     // Enemy faces left if player is left, right if player is right
     angleDeg = aimDx < 0 ? (-180 + arcChoice) : -arcChoice;
 
@@ -87,15 +103,73 @@ function applyAIShot() {
         power = clamp(rough * 6.06, 25, 95); // 1 / 0.165 = 6.06 true velocity multiplier
     }
 
-    angleDeg += Math.random() * 3 - 1.5;
-    power += Math.random() * 2 - 1;
+    if (GAME.difficultyMode === "hard") {
+        // Hard mode uses a physics simulation loop to guarantee a direct hit
+        let bestDistance = Infinity;
+        let bestAngle = angleDeg;
+        let bestPower = power;
+
+        const targetX = player.x;
+        const targetY = player.y - 24 * player.scale;
+        
+        // Save current angle to restore later, because muzzlePoint() uses enemy.angle
+        const oldAngle = enemy.angle;
+
+        // Sweep angles and power around the heuristic guess
+        for (let a = angleDeg - 12; a <= angleDeg + 12; a += 1.25) {
+            enemy.angle = a;
+            const muzzle = enemy.muzzlePoint();
+            const rad = a * Math.PI / 180;
+            
+            for (let p = Math.max(20, power - 25); p <= Math.min(100, power + 25); p += 2.5) {
+                let sx = muzzle.x;
+                let sy = muzzle.y;
+                let svx = Math.cos(rad) * p * 0.165;
+                let svy = Math.sin(rad) * p * 0.165;
+
+                let simClosest = Infinity;
+                for (let tk = 0; tk < 180; tk++) {
+                    sx += svx;
+                    sy += svy;
+                    svy += GAME.gravity;
+                    svx += GAME.wind * 1.15;
+
+                    const d = Math.hypot(targetX - sx, targetY - sy);
+                    if (d < simClosest) simClosest = d;
+
+                    if (sy > targetY + 30) break;
+                }
+
+                if (simClosest < bestDistance) {
+                    bestDistance = simClosest;
+                    bestAngle = a;
+                    bestPower = p;
+                }
+            }
+        }
+        
+        enemy.angle = oldAngle;
+
+        // If a highly accurate shot is found, use it
+        if (bestDistance < 60) {
+            angleDeg = bestAngle;
+            power = bestPower;
+        }
+    }
+
+    // Baseline random scatter
+    const baseScatterA = GAME.difficultyMode === "hard" ? 0.3 : 1.5;
+    const baseScatterP = GAME.difficultyMode === "hard" ? 0.2 : 1.0;
+    
+    angleDeg += (Math.random() * 2 - 1) * baseScatterA;
+    power += (Math.random() * 2 - 1) * baseScatterP;
 
     // ── Difficulty-aware AI error ──────────────────────────
     const errA = GAME.difficultyMode === "easy" ? 15
-        : GAME.difficultyMode === "hard" ? 0.5
+        : GAME.difficultyMode === "hard" ? 1.0 // Give user a chance (down from perfect 0.05)
             : 3;
     const errP = GAME.difficultyMode === "easy" ? 10
-        : GAME.difficultyMode === "hard" ? 0.2
+        : GAME.difficultyMode === "hard" ? 0.8 // Give user a chance (down from perfect 0.05)
             : 2.0;
     angleDeg += (Math.random() * 2 - 1) * errA;
     power += (Math.random() * 2 - 1) * errP;
@@ -271,13 +345,13 @@ function applyDamage(tank, amount) {
             GAME.killedEnemies++;
             GAME.winner = null; // No winner yet
             GAME.state = "respawning"; // prevent endTurn from passing turn to dead enemy
-            
+
             setTimeout(() => {
                 respawnEnemy();
                 GAME.state = "aiming"; // Return to aiming state after explosion
                 GAME.turn = "player";  // Give player another turn after a kill
             }, 2000);
-            
+
             return; // Don't proceed to game over
         }
 
@@ -296,7 +370,7 @@ function applyDamage(tank, amount) {
 
             if (GAME.mode === 'multiplayer') {
                 titleEl.textContent = `${GAME.winner} WINS!`;
-                descEl.textContent = "Great match.";
+                descEl.textContent = "Great match!";
                 nextBtn.textContent = "Play Again";
                 nextBtn.style.display = "inline-block";
                 nextBtn.onclick = function () { playAgain(); };
@@ -319,7 +393,7 @@ function applyDamage(tank, amount) {
             const hits = isPlayerWinner ? GAME.playerHits : GAME.enemyHits;
             const dmg = isPlayerWinner ? GAME.playerDamageDealt : GAME.enemyDamageDealt;
             const acc = shots > 0 ? Math.min(100, Math.round((hits / shots) * 100)) : 0;
-            
+
             document.getElementById("statShots").textContent = shots;
             document.getElementById("statHits").textContent = hits;
             document.getElementById("statAccuracy").textContent = acc + "%";
@@ -420,8 +494,8 @@ function endTurn() {
 
     // ── Dynamic Wind Fluctuation ──
     const windMax = GAME.difficultyMode === "easy" ? 0.045 : (GAME.difficultyMode === "hard" ? 0.16 : 0.09);
-    GAME.wind += (Math.random() * 2 - 1) * (windMax * 0.65); // dynamically shifts
-    GAME.wind = Math.max(-windMax, Math.min(windMax, GAME.wind));
+    // Completely randomizes wind direction and strength each turn
+    GAME.wind = (Math.random() * 2 - 1) * windMax;
 
     [player, enemy].forEach(tank => {
         if (tank.effectTurns > 0) {

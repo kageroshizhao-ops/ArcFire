@@ -460,6 +460,23 @@ document.querySelectorAll(".diff-btn").forEach(btn => {
     });
 });
 
+const modeSelectBox = document.getElementById("modeSelect");
+if (modeSelectBox) {
+    function updateDiffSelectorState() {
+        const diffBtns = document.getElementById("diffBtns");
+        if (!diffBtns) return;
+        if (modeSelectBox.value === "1") {
+            diffBtns.style.pointerEvents = "none";
+            diffBtns.style.opacity = "0.5";
+        } else {
+            diffBtns.style.pointerEvents = "auto";
+            diffBtns.style.opacity = "1";
+        }
+    }
+    modeSelectBox.addEventListener("change", updateDiffSelectorState);
+    updateDiffSelectorState(); // Initialize state on load
+}
+
 const mBtn = document.getElementById("menuBtn");
 if (mBtn) mBtn.addEventListener("click", () => {
     if (GAME.state === "intro" || GAME.state === "gameover") showIntro();
