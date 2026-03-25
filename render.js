@@ -163,16 +163,20 @@ function drawTank(tank) {
 }
 
 function drawAimGuide() {
-    if (GAME.turn !== "player" || GAME.state !== "aiming" || GAME.winner) return;
+    if (GAME.state !== "aiming" || GAME.winner) return;
 
-    const muzzle = player.muzzlePoint();
-    const rad = player.angle * Math.PI / 180;
+    // Only show aim guide for human-controlled turn(s).
+    if (GAME.mode !== 'multiplayer' && GAME.turn !== 'player') return;
+
+    const activeTank = GAME.turn === 'player' ? player : enemy;
+    const muzzle = activeTank.muzzlePoint();
+    const rad = activeTank.angle * Math.PI / 180;
     const preview = [];
 
     let x = muzzle.x;
     let y = muzzle.y;
-    let vx = Math.cos(rad) * player.power * 0.165;
-    let vy = Math.sin(rad) * player.power * 0.165;
+    let vx = Math.cos(rad) * activeTank.power * 0.165;
+    let vy = Math.sin(rad) * activeTank.power * 0.165;
 
     for (let i = 0; i < 35; i++) {
         // Step 2 frames per iteration to preview trajectory far out efficiently
@@ -516,10 +520,10 @@ function drawCanvasHUD() {
     const barH = 14;
 
     // Player HP Bar (Left)
-    drawBar(margin, margin, barW, barH, player.hp / player.maxHp, "#71e07a", "COMMANDER", player.angle, player.power);
+    drawBar(margin, margin, barW, barH, player.hp / player.maxHp, "#71e07a", player.name || "COMMANDER", player.angle, player.power);
 
     // Enemy HP Bar (Right)
-    drawBar(GAME.width - barW - margin, margin, barW, barH, enemy.hp / enemy.maxHp, "#ff6b6b", "ENEMY ACES", enemy.angle, enemy.power);
+    drawBar(GAME.width - barW - margin, margin, barW, barH, enemy.hp / enemy.maxHp, "#ff6b6b", enemy.name || "ENEMY ACES", enemy.angle, enemy.power);
 
     // Center Display (Round, Score, Wind, Turn)
     drawCenterStats();
@@ -556,9 +560,11 @@ function drawCenterStats() {
 
     // Row 3 – Turn indicator
     const isPlayer = GAME.turn === "player";
+    const turnName = (isPlayer ? player.name : enemy.name) || (isPlayer ? "PLAYER" : "ENEMY");
     ctx.font = "bold 10px 'Orbitron', sans-serif";
     ctx.fillStyle = isPlayer ? "#71e07a" : "#ff6b6b";
-    ctx.fillText(isPlayer ? "▶  YOUR TURN" : "ENEMY TURN  ◀", cx, py + 50);
+    const turnText = isPlayer ? `▶  ${turnName.toUpperCase()} TURN` : `${turnName.toUpperCase()} TURN  ◀`;
+    ctx.fillText(turnText, cx, py + 50);
 
     // Wind block – left side
     const ws = GAME.wind;

@@ -82,7 +82,7 @@ function createTerrain() {
                 drawBgLayer(`${base}_${theme}`, 0.9);
             }
 
-            const useRoads = Math.random() > 0.4;
+            const useRoads = true;
             if (useRoads) {
                 // 5️⃣  Road / platform layer drawn to foreground canvas
                 tctx.drawImage(img, 0, 0, GAME.width, GAME.height);
@@ -165,19 +165,26 @@ function createSkyDecor() {
 }
 
 function getTerrainY(x) {
-    if (!GAME.terrain || GAME.terrain.length === 0) {
-        return GAME.groundBase || 430;
-    }
+    // Defensive: if terrain isn't built yet, return a safe default height
+    const DEFAULT_Y = GAME.height ? GAME.height - 180 : 420;
+    if (!GAME.terrain || GAME.terrain.length === 0) return DEFAULT_Y;
 
-    if (x < 0) return GAME.terrain[0].y + (0 - x) * 5;
-    if (x > GAME.width) return GAME.terrain[GAME.terrain.length - 1].y + (x - GAME.width) * 5;
+    if (x < 0) {
+        const first = GAME.terrain[0];
+        return (first && typeof first.y === 'number') ? first.y + (0 - x) * 5 : DEFAULT_Y;
+    }
+    if (x > GAME.width) {
+        const last = GAME.terrain[GAME.terrain.length - 1];
+        return (last && typeof last.y === 'number') ? last.y + (x - GAME.width) * 5 : DEFAULT_Y;
+    }
 
     const clampedX = Math.max(0, Math.min(GAME.width, x));
     const index = Math.floor(clampedX / 4);
-    const p1 = GAME.terrain[index] || GAME.terrain[GAME.terrain.length - 1];
+    const p1 = GAME.terrain[index] || GAME.terrain[GAME.terrain.length - 1] || { x: 0, y: DEFAULT_Y };
     const p2 = GAME.terrain[Math.min(index + 1, GAME.terrain.length - 1)] || p1;
-    const t = (clampedX - p1.x) / Math.max(1, p2.x - p1.x);
-    return p1.y + (p2.y - p1.y) * t;
+    const denom = Math.max(1, (p2.x - p1.x) || 1);
+    const t = (clampedX - (p1.x || 0)) / denom;
+    return (p1.y || DEFAULT_Y) + ((p2.y || DEFAULT_Y) - (p1.y || DEFAULT_Y)) * t;
 }
 
 function getTerrainAngle(x) {
