@@ -266,18 +266,28 @@ function applyDamage(tank, amount) {
         GAME.round++;
 
         setTimeout(() => {
-            // Show winner name prominently
-            document.getElementById("gameOverDesc").textContent = `${GAME.winner} Wins!`;
-
-            // For multiplayer, convert the Next button into Play Again; for single-player keep Next Level logic
+            const isPlayerWinner = winnerTank === player;
+            const titleEl = document.getElementById("gameOverTitle");
+            const descEl = document.getElementById("gameOverDesc");
             const nextBtn = document.getElementById("nextLevelBtn");
+
             if (GAME.mode === 'multiplayer') {
+                titleEl.textContent = `${GAME.winner} WINS!`;
+                descEl.textContent = "Great match.";
                 nextBtn.textContent = "Play Again";
                 nextBtn.style.display = "inline-block";
                 nextBtn.onclick = function () { playAgain(); };
             } else {
+                if (isPlayerWinner) {
+                    titleEl.textContent = "VICTORY";
+                    descEl.textContent = "Enemy tank eliminated.";
+                    nextBtn.style.display = "inline-block";
+                } else {
+                    titleEl.textContent = "DEFEAT";
+                    descEl.textContent = "Your tank was destroyed.";
+                    nextBtn.style.display = "none";
+                }
                 nextBtn.textContent = "Next Level";
-                nextBtn.style.display = playerWon ? "inline-block" : "none";
                 nextBtn.onclick = loadNextLevel;
             }
 
