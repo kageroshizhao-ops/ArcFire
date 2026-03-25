@@ -57,8 +57,6 @@ function drawRock(x, y, scale) {
 }
 
 function drawTerrain() {
-    // Only show the terrain canvas when the battle has started (not on the intro screen)
-    if (GAME.state === "intro") return;
     if (GAME.terrainCanvas) {
         ctx.drawImage(GAME.terrainCanvas, 0, 0);
     }
